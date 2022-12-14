@@ -6,7 +6,6 @@ import argparse
 from datetime import datetime
 import numpy as np
 import logging
-import matplotlib.pyplot as plt
 
 from model import PolypSeg
 
@@ -79,9 +78,9 @@ def train(train_loader, model, optimizer, epoch, test_path):
             gts = Variable(gts).cuda()
             # ---- rescale ----
             trainsize = int(round(opt.trainsize * rate / 32) * 32)
-            if rate != 1:
-                images = F.upsample(images, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
-                gts = F.upsample(gts, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+            # if rate != 1:
+            #     images = F.upsample(images, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+            #     gts = F.upsample(gts, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
             out = model(images)
             loss = structure_loss(out, gts)
             loss.backward()
@@ -114,21 +113,6 @@ def train(train_loader, model, optimizer, epoch, test_path):
             os.makedirs(save_path)
         torch.save(model.state_dict(), f"{save_path}{model._get_name()}.e_{epoch}.{timestamp}.pth")
 
-
-def plot_train(dict_plot=None, name = None):
-    color = ['red', 'lawngreen', 'lime', 'gold', 'm', 'plum', 'blue']
-    line = ['-', "--"]
-    for i in range(len(name)):
-        plt.plot(dict_plot[name[i]], label=name[i], color=color[i], linestyle=line[(i + 1) % 2])
-        transfuse = {'CVC-300': 0.902, 'CVC-ClinicDB': 0.918, 'Kvasir': 0.918, 'CVC-ColonDB': 0.773,'ETIS-LaribPolypDB': 0.733, 'test':0.83}
-        plt.axhline(y=transfuse[name[i]], color=color[i], linestyle='-')
-    plt.xlabel("epoch")
-    plt.ylabel("dice")
-    plt.title('Train')
-    plt.legend()
-    plt.savefig('eval.png')
-    # plt.show()
-    
     
 if __name__ == '__main__':
     dict_plot = {'CVC-300':[], 'CVC-ClinicDB':[], 'Kvasir':[], 'CVC-ColonDB':[], 'ETIS-LaribPolypDB':[], 'test':[]}
@@ -208,5 +192,3 @@ if __name__ == '__main__':
         adjust_lr(optimizer, opt.lr, epoch, 0.1, 200)
         train(train_loader, model, optimizer, epoch, opt.test_path)
     
-    # plot the eval.png in the training stage
-    # plot_train(dict_plot, name)

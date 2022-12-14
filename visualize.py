@@ -8,6 +8,7 @@
 import cv2
 import os
 import numpy as np
+from utils.utils import dice
 
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
 
@@ -46,11 +47,13 @@ while True:
     # Read imgs
     img = cv2.imread(img_path)
     gt = cv2.imread(gt_path)
-    pred = cv2.imread(pred_path)
+    gt_gray = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+    pred = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)
 
     # Scale
     img = cv2.resize(img, None, fx=scale, fy=scale)
     gt = cv2.resize(gt, None, fx=scale, fy=scale)
+    gt_gray = cv2.resize(gt_gray, None, fx=scale, fy=scale)
     pred = cv2.resize(pred, None, fx=scale, fy=scale)
     
     # Blend img + gt
@@ -63,7 +66,7 @@ while True:
         img = img * (1-mask) + mask * mask
         img = np.uint8(img * 255)
 
-    # Draw text
+    # Text: dataset, image, scale
     text1 = f"Dataset {ds_idx}: {DS_NAMES[ds_idx]}"
     text2 = f"Image {img_idx}/{len(imgs) - 1}: {gt_filename}"
     text3 = f"{scale}x"
@@ -73,6 +76,19 @@ while True:
     cv2.putText(img=pred, text=text1, org=(40, 40), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
     cv2.putText(img=pred, text=text2, org=(40, 60), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
     cv2.putText(img=pred, text=text3, org=(40, 80), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+
+    # Text: percent of white pixel
+    percent = gt_gray[gt_gray > 0].size / gt_gray.size * 100
+    text4 = f"White: {percent:.1f} %"
+    cv2.putText(img=img, text=text4, org=(40, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+
+    # Text: Dice score
+    input = pred / (pred.max() + 1e-8)
+    target = gt_gray / (gt_gray.max() + 1e-8)
+    dice_score = dice(input, target)
+    text5 = f"Dice score: {dice_score:.4f}"
+    cv2.putText(img=img, text=text5, org=(40, 120), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+
 
     # Show
     cv2.imshow("Image and GT", img)

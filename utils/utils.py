@@ -60,3 +60,14 @@ def CalParams(model, input_tensor):
     flops, params = profile(model, inputs=(input_tensor,))
     flops, params = clever_format([flops, params], "%.3f")
     print('[Statistics Information]\nFLOPs: {}\nParams: {}'.format(flops, params))
+
+def dice(input, target):
+    """
+    input, target: gray image, normalized in [0,1]
+    """
+    SMOOTH = 1
+    input_flat = np.reshape(input, (-1))
+    target_flat = np.reshape(target, (-1))
+    intersection = (input_flat * target_flat)
+    dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
+    return dice
