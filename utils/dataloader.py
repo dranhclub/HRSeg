@@ -13,49 +13,42 @@ class PolypDataset(data.Dataset):
     """
     def __init__(self, image_root, gt_root, trainsize, augmentations):
         self.trainsize = trainsize
-        self.augmentations = augmentations
+
         self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
         self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.png')]
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
         self.filter_files()
         self.size = len(self.images)
-        if self.augmentations == 'True':
-            print('Using RandomRotation, RandomFlip')
-            self.img_transform = transforms.Compose([
-                transforms.RandomRotation(90, resample=False, expand=False, center=None, fill=None),
-                transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.Resize((self.trainsize, self.trainsize)),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406],
-                                     [0.229, 0.224, 0.225])])
-            self.gt_transform = transforms.Compose([
-                transforms.RandomRotation(90, resample=False, expand=False, center=None, fill=None),
-                transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.Resize((self.trainsize, self.trainsize)),
-                transforms.ToTensor()])
-            
-        else:
-            print('no augmentation')
-            self.img_transform = transforms.Compose([
-                transforms.Resize((self.trainsize, self.trainsize)),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406],
-                                     [0.229, 0.224, 0.225])])
-            
-            self.gt_transform = transforms.Compose([
-                transforms.Resize((self.trainsize, self.trainsize)),
-                transforms.ToTensor()])
-            
+
+        print('Using RandomRotation, RandomFlip')
+        self.img_transform = transforms.Compose([
+            transforms.RandomRotation(90, expand=False, center=None, fill=None),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomAffine(degrees=0, scale=(0.5, 1)),
+            transforms.Resize((self.trainsize, self.trainsize)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406],
+                                    [0.229, 0.224, 0.225])])
+
+        self.gt_transform = transforms.Compose([
+            transforms.RandomRotation(90, expand=False, center=None, fill=None),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomAffine(degrees=0, scale=(0.5, 1)),
+            transforms.Resize((self.trainsize, self.trainsize)),
+            transforms.ToTensor()])
+        
 
     def __getitem__(self, index):
         
+        # Read as PIL images
         image = self.rgb_loader(self.images[index])
         gt = self.binary_loader(self.gts[index])
         
-        seed = np.random.randint(2147483647) # make a seed with numpy generator 
+        # make a seed with numpy generator (we need image transform operate same as gt transform)
+        seed = np.random.randint(2147483647) 
         random.seed(seed) # apply this seed to img tranfsorms
         torch.manual_seed(seed) # needed for torchvision 0.7
         if self.img_transform is not None:
@@ -151,3 +144,17 @@ class test_dataset:
         with open(path, 'rb') as f:
             img = Image.open(f)
             return img.convert('L')
+
+# if __name__ == "__main__":
+
+#     image_root = './dataset/TrainDataset/images/'
+#     gt_root = './dataset/TrainDataset/masks/'
+#     batch_size = 8
+#     train_size = 352
+#     augmentation = 'True'
+#     train_loader = get_loader(image_root, gt_root, batchsize=batch_size, trainsize=train_size,
+#                                 augmentation=augmentation, num_workers=1)
+
+#     batch_no = 0
+#     for images, targets in train_loader:
+#         batch_no += 1
