@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from thop import profile
 from thop import clever_format
-
+from PIL import Image
 
 def clip_gradient(optimizer, grad_clip):
     """
@@ -71,3 +71,13 @@ def dice(input, target):
     intersection = (input_flat * target_flat)
     dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
     return dice
+
+def rgb_loader(path):
+    with open(path, 'rb') as f:
+        img = Image.open(f)
+        return img.convert('RGB')
+
+def binary_loader(path):
+    with open(path, 'rb') as f:
+        img = Image.open(f)
+        return img.convert('L')

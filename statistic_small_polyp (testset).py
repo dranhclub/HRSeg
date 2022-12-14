@@ -7,7 +7,8 @@ from utils.utils import dice
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
 
 GT_PATH = './dataset/TestDataset'
-PRED_PATH = './result_map/PolypPVT'
+# PRED_PATH = './result_map/PolypPVT' # result when inference 1 step
+PRED_PATH = './result_map/twostep' # result when inferenec 2 step
 
 
 img_idx = 0
@@ -17,6 +18,7 @@ all_ds_dice_scores = []
 
 # For each dataset
 for ds_idx, ds in enumerate(DS_NAMES):
+    print("Dataset: ", ds)
     percents = []
     dice_scores = []
 
@@ -50,6 +52,8 @@ for ds_idx, ds in enumerate(DS_NAMES):
         dice_score = dice(gt / 255, pred / 255) * 100
         dice_scores.append(dice_score)
 
+    print("Mean dice=", np.mean(dice_scores))
+
     # Plot histogram for this dataset
     plt.hist(percents, bins=30)
     plt.title("Dataset: " + ds)
@@ -73,6 +77,7 @@ plt.title("Dataset: all")
 plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
 plt.ylabel("# Images")
 plt.show()
+
 # Plot scatter for all dataset
 plt.scatter(all_ds_percents, all_ds_dice_scores)
 plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
