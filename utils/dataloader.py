@@ -11,7 +11,7 @@ class PolypDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, image_root, gt_root, trainsize, augmentations):
+    def __init__(self, image_root, gt_root, trainsize):
         self.trainsize = trainsize
 
         self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
@@ -22,6 +22,22 @@ class PolypDataset(data.Dataset):
         self.size = len(self.images)
 
         print('Using RandomRotation, RandomFlip')
+        self.img_transform_wo_affine = transforms.Compose([
+            transforms.RandomRotation(90, expand=False, center=None, fill=None),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.Resize((self.trainsize, self.trainsize)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406],
+                                    [0.229, 0.224, 0.225])])
+
+        self.gt_transform_wo_affine = transforms.Compose([
+            transforms.RandomRotation(90, expand=False, center=None, fill=None),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.Resize((self.trainsize, self.trainsize)),
+            transforms.ToTensor()])
+
         self.img_transform = transforms.Compose([
             transforms.RandomRotation(90, expand=False, center=None, fill=None),
             transforms.RandomVerticalFlip(p=0.5),
@@ -40,13 +56,21 @@ class PolypDataset(data.Dataset):
             transforms.Resize((self.trainsize, self.trainsize)),
             transforms.ToTensor()])
         
+    def _transform_small_polyp(self, image, gt):
+        # make a seed with numpy generator (we need image transform operate same as gt transform)
+        seed = np.random.randint(2147483647) 
+        random.seed(seed) # apply this seed to img tranfsorms
+        torch.manual_seed(seed) # needed for torchvision 0.7
+        if self.img_transform_wo_affine is not None:
+            image = self.img_transform_wo_affine(image)
+            
+        random.seed(seed) # apply this seed to img tranfsorms
+        torch.manual_seed(seed) # needed for torchvision 0.7
+        if self.gt_transform_wo_affine is not None:
+            gt = self.gt_transform_wo_affine(gt)
+        return image, gt
 
-    def __getitem__(self, index):
-        
-        # Read as PIL images
-        image = self.rgb_loader(self.images[index])
-        gt = self.binary_loader(self.gts[index])
-        
+    def _transform_big_polyp(self, image, gt):
         # make a seed with numpy generator (we need image transform operate same as gt transform)
         seed = np.random.randint(2147483647) 
         random.seed(seed) # apply this seed to img tranfsorms
@@ -58,6 +82,24 @@ class PolypDataset(data.Dataset):
         torch.manual_seed(seed) # needed for torchvision 0.7
         if self.gt_transform is not None:
             gt = self.gt_transform(gt)
+        return image, gt
+
+    def __getitem__(self, index):
+        
+        # Read as PIL images
+        image = self.rgb_loader(self.images[index])
+        gt = self.binary_loader(self.gts[index])
+        
+        # Size of polyp
+        gt_np = np.array(gt)
+        percent = gt_np[gt_np > 0].size / gt_np.size * 100
+
+        # Choose right transform
+        if percent > 20:
+            image, gt = self._transform_big_polyp(image, gt)
+        else:
+            image, gt = self._transform_small_polyp(image, gt)
+
         return image, gt
 
     def filter_files(self):
@@ -98,9 +140,9 @@ class PolypDataset(data.Dataset):
         return self.size
 
 
-def get_loader(image_root, gt_root, batchsize, trainsize, shuffle=True, num_workers=4, pin_memory=True, augmentation=False):
+def get_loader(image_root, gt_root, batchsize, trainsize, shuffle=True, num_workers=4, pin_memory=True):
 
-    dataset = PolypDataset(image_root, gt_root, trainsize, augmentation)
+    dataset = PolypDataset(image_root, gt_root, trainsize)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batchsize,
                                   shuffle=shuffle,

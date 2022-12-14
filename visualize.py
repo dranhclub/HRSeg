@@ -13,8 +13,8 @@ from utils.utils import dice
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
 
 GT_PATH = './dataset/TestDataset'
-# PRED_PATH = './result_map/PolypPVT' # result when inference 1 step
-PRED_PATH = './result_map/twostep' # result when inferenec 2 step
+PRED_PATH = './result_map/PolypPVT' # result when inference 1 step
+# PRED_PATH = './result_map/twostep' # result when inferenec 2 step
 
 ds_idx = 0
 img_idx = 0
@@ -90,6 +90,10 @@ while True:
     text5 = f"Dice score: {dice_score:.4f}"
     cv2.putText(img=pred, text=text5, org=(40, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
 
+    # Filter 
+    if dice_score * 100 > 50:
+        img_idx += 1
+        continue
 
     # Show
     cv2.imshow("Image and GT", img)

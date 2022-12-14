@@ -131,9 +131,6 @@ if __name__ == '__main__':
     parser.add_argument('--optimizer', type=str,
                         default='AdamW', help='choosing optimizer AdamW or SGD')
 
-    parser.add_argument('--augmentation',
-                        default=False, help='choose to do random flip rotation')
-
     parser.add_argument('--batchsize', type=int,
                         default=16, help='training batch size')
 
@@ -182,8 +179,7 @@ if __name__ == '__main__':
     image_root = '{}/images/'.format(opt.train_path)
     gt_root = '{}/masks/'.format(opt.train_path)
 
-    train_loader = get_loader(image_root, gt_root, batchsize=opt.batchsize, trainsize=opt.trainsize,
-                              augmentation=opt.augmentation)
+    train_loader = get_loader(image_root, gt_root, batchsize=opt.batchsize, trainsize=opt.trainsize)
     total_step = len(train_loader)
 
     print("#" * 20, "Start Training", "#" * 20)
