@@ -8,7 +8,8 @@ DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolyp
 
 GT_PATH = './dataset/TestDataset'
 # PRED_PATH = './result_map/PolypPVT' # result when inference 1 step
-PRED_PATH = './result_map/twostep' # result when inferenec 2 step
+# PRED_PATH = './result_map/twostep' # result when inferenec 2 step
+PRED_PATH = './result_map/affine_big_only'
 
 
 img_idx = 0

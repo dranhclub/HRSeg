@@ -8,9 +8,10 @@ from utils import utils
 from torchvision import transforms
 
 TEST_SIZE = 352
-PTH_PATH = './model_pth/PolypSeg.e_120.07h59.pth'
+# PTH_PATH = './model_pth/PolypSeg.e_120.07h59.pth'
+PTH_PATH = './model_pth/Affine big only e120.pth'
 
-SAVE_ROOT_DIR = './result_map/onestep/'
+SAVE_ROOT_DIR = './result_map/affine_big_only/'
 
 # Prepare model
 model = PolypSeg()
@@ -25,14 +26,15 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406],
                             [0.229, 0.224, 0.225])])
 
-def infer(image):
+def infer(PIL_Img):
     """
     image: PIL image.
     res: mask as a numpy array with value in range 0-1.
     """
-    input = transform(image).unsqueeze(0).cuda()
+    input = transform(PIL_Img).unsqueeze(0).cuda()
     res = model(input)
-    res = F.upsample(res, size=image.size, mode='bilinear', align_corners=False)
+    width, height = PIL_Img.size[0], PIL_Img.size[1]
+    res = F.upsample(res, size=(height, width), mode='bilinear', align_corners=False)
     res = res.sigmoid().data.cpu().numpy().squeeze()
     res = (res - res.min()) / (res.max() - res.min() + 1e-8)
     return res
