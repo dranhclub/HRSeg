@@ -34,7 +34,7 @@ def blend(background, foreground_color, mask, alpha):
 
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
 
-GT_PATH = './dataset/TestDataset'
+DS_PATH = './dataset/TestDataset'
 
 PRED_PATH = './result_map/onestep' # result when inference 1 step
 # PRED_PATH = './result_map/twostep' # result when inferenec 2 step
@@ -53,15 +53,15 @@ while True:
     ds_idx = ds_idx % len(DS_NAMES)
 
     # Get file name by index
-    img_dir = f"{GT_PATH}/{DS_NAMES[ds_idx]}/images"
+    img_dir = f"{DS_PATH}/{DS_NAMES[ds_idx]}/images"
     imgs = natsorted(os.listdir(img_dir))
     img_idx = img_idx % len(imgs)
     img_filename = imgs[img_idx]
-    img_path = f"{GT_PATH}/{DS_NAMES[ds_idx]}/images/{img_filename}"
+    img_path = f"{DS_PATH}/{DS_NAMES[ds_idx]}/images/{img_filename}"
 
-    gt_dir = f"{GT_PATH}/{DS_NAMES[ds_idx]}/masks"
+    gt_dir = f"{DS_PATH}/{DS_NAMES[ds_idx]}/masks"
     gt_filename = imgs[img_idx]
-    gt_path = f"{GT_PATH}/{DS_NAMES[ds_idx]}/masks/{gt_filename}"
+    gt_path = f"{DS_PATH}/{DS_NAMES[ds_idx]}/masks/{gt_filename}"
 
     pred_dir = f"{PRED_PATH}/{DS_NAMES[ds_idx]}"
     pred_filename = imgs[img_idx]

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from utils.utils import dice
 
 
-GT_PATH = './dataset/TrainDataset'
+DS_PATH = './dataset/TrainDataset'
 PRED_PATH = './result_map/PolypPVT'
 
 
@@ -16,16 +16,16 @@ percents = []
 dice_scores = []
 
 # Get imgs of dataset
-img_dir = f"{GT_PATH}/images"
+img_dir = f"{DS_PATH}/images"
 imgs = os.listdir(img_dir)
 
 # For each img
 for img_idx in range(len(imgs)):
 
     # Get GT of img
-    gt_dir = f"{GT_PATH}/masks"
+    gt_dir = f"{DS_PATH}/masks"
     gt_filename = imgs[img_idx]
-    gt_path = f"{GT_PATH}/masks/{gt_filename}"
+    gt_path = f"{DS_PATH}/masks/{gt_filename}"
 
     # # Get prediction
     # pred_dir = f"{PRED_PATH}/{DS_NAMES[ds_idx]}"

@@ -6,10 +6,13 @@ from utils.utils import dice
 
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
 
-GT_PATH = './dataset/TestDataset'
+DS_PATH = './dataset/TestDataset'
+
 # PRED_PATH = './result_map/PolypPVT' # result when inference 1 step
 # PRED_PATH = './result_map/twostep' # result when inferenec 2 step
-PRED_PATH = './result_map/affine_big_only'
+# PRED_PATH = './result_map/affine_big_only'
+PRED_PATH = './result_map/testsize352'
+
 
 
 img_idx = 0
@@ -24,16 +27,16 @@ for ds_idx, ds in enumerate(DS_NAMES):
     dice_scores = []
 
     # Get imgs of dataset
-    img_dir = f"{GT_PATH}/{DS_NAMES[ds_idx]}/images"
+    img_dir = f"{DS_PATH}/{DS_NAMES[ds_idx]}/images"
     imgs = os.listdir(img_dir)
     
     # For each img
     for img_idx in range(len(imgs)):
 
         # Get GT of img
-        gt_dir = f"{GT_PATH}/{DS_NAMES[ds_idx]}/masks"
+        gt_dir = f"{DS_PATH}/{DS_NAMES[ds_idx]}/masks"
         gt_filename = imgs[img_idx]
-        gt_path = f"{GT_PATH}/{DS_NAMES[ds_idx]}/masks/{gt_filename}"
+        gt_path = f"{DS_PATH}/{DS_NAMES[ds_idx]}/masks/{gt_filename}"
 
         # Get prediction
         pred_dir = f"{PRED_PATH}/{DS_NAMES[ds_idx]}"
@@ -55,33 +58,33 @@ for ds_idx, ds in enumerate(DS_NAMES):
 
     print("Mean dice=", np.mean(dice_scores))
 
-    # Plot histogram for this dataset
-    plt.hist(percents, bins=30)
-    plt.title("Dataset: " + ds)
-    plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-    plt.ylabel("# Images")
-    plt.show()
+    # # Plot histogram for this dataset
+    # plt.hist(percents, bins=30)
+    # plt.title("Dataset: " + ds)
+    # plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
+    # plt.ylabel("# Images")
+    # plt.show()
 
-    # Plot scatter for this dataset
-    plt.scatter(percents, dice_scores)
-    plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-    plt.ylabel("Dice score (%)")
-    plt.title("Dataset: " + ds)
-    plt.show()
+    # # Plot scatter for this dataset
+    # plt.scatter(percents, dice_scores)
+    # plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
+    # plt.ylabel("Dice score (%)")
+    # plt.title("Dataset: " + ds)
+    # plt.show()
 
     all_ds_percents.extend(percents)
     all_ds_dice_scores.extend(dice_scores)
 
-# Plot histogram for all dataset
-plt.hist(all_ds_percents, bins=30)
-plt.title("Dataset: all")
-plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-plt.ylabel("# Images")
-plt.show()
+# # Plot histogram for all dataset
+# plt.hist(all_ds_percents, bins=30)
+# plt.title("Dataset: all")
+# plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
+# plt.ylabel("# Images")
+# plt.show()
 
-# Plot scatter for all dataset
-plt.scatter(all_ds_percents, all_ds_dice_scores)
-plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-plt.ylabel("Dice score (%)")
-plt.title("Dataset: all")
-plt.show()
+# # Plot scatter for all dataset
+# plt.scatter(all_ds_percents, all_ds_dice_scores)
+# plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
+# plt.ylabel("Dice score (%)")
+# plt.title("Dataset: all")
+# plt.show()

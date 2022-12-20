@@ -95,7 +95,7 @@ class PolypDataset(data.Dataset):
         percent = gt_np[gt_np > 0].size / gt_np.size * 100
 
         # Choose right transform
-        if percent > 20:
+        if percent > 2:
             image, gt = self._transform_big_polyp(image, gt)
         else:
             image, gt = self._transform_small_polyp(image, gt)
@@ -186,17 +186,3 @@ class test_dataset:
         with open(path, 'rb') as f:
             img = Image.open(f)
             return img.convert('L')
-
-# if __name__ == "__main__":
-
-#     image_root = './dataset/TrainDataset/images/'
-#     gt_root = './dataset/TrainDataset/masks/'
-#     batch_size = 8
-#     train_size = 352
-#     augmentation = 'True'
-#     train_loader = get_loader(image_root, gt_root, batchsize=batch_size, trainsize=train_size,
-#                                 augmentation=augmentation, num_workers=1)
-
-#     batch_no = 0
-#     for images, targets in train_loader:
-#         batch_no += 1

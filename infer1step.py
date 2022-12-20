@@ -7,11 +7,11 @@ import cv2
 from utils import utils
 from torchvision import transforms
 
-TEST_SIZE = 352
-# PTH_PATH = './model_pth/PolypSeg.e_120.07h59.pth'
-PTH_PATH = './model_pth/Affine big only e120.pth'
+TEST_SIZE = 400
+PTH_PATH = './model_pth/PolypSeg.e_120.07h59.pth'
+# PTH_PATH = './model_pth/Affine big only e120.pth'
 
-SAVE_ROOT_DIR = './result_map/affine_big_only/'
+SAVE_ROOT_DIR = './result_map/testsize400/'
 
 # Prepare model
 model = PolypSeg()
