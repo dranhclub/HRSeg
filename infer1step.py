@@ -4,7 +4,7 @@ import numpy as np
 import os
 from model import PolypSeg
 import cv2
-from utils import utils
+from . import utils
 from torchvision import transforms
 
 TEST_SIZE = 400

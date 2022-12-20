@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.utils import dice
+from utils import dice
 
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
 

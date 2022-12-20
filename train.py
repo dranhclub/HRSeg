@@ -1,5 +1,5 @@
-from utils.utils import clip_gradient, adjust_lr
-from utils.dataloader import get_loader, test_dataset
+from utils import clip_gradient, adjust_lr
+from dataloader import get_loader, test_dataset
 from model import PolypSeg
 import torch
 from torch.autograd import Variable

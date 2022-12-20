@@ -10,7 +10,7 @@
 import cv2
 import os
 import numpy as np
-from utils.utils import dice
+from utils import dice
 from natsort import natsorted
 
 def blend(background, foreground_color, mask, alpha):
