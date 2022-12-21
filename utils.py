@@ -71,13 +71,3 @@ def dice(input, target):
     intersection = (input_flat * target_flat)
     dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
     return dice
-
-def rgb_loader(path):
-    with open(path, 'rb') as f:
-        img = Image.open(f)
-        return img.convert('RGB')
-
-def binary_loader(path):
-    with open(path, 'rb') as f:
-        img = Image.open(f)
-        return img.convert('L')

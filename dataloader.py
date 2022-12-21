@@ -1,148 +1,76 @@
 import os
 from PIL import Image
 import torch.utils.data as data
-import torchvision.transforms as transforms
 import numpy as np
-import random
-import torch
+from natsort import natsorted
+import albumentations as A
+import albumentations.pytorch.transforms
+import cv2
 
-
-class PolypDataset(data.Dataset):
+class TrainDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, image_root, gt_root, trainsize):
-        self.trainsize = trainsize
+    def __init__(self, dataset_root, train_size):
+        self.train_size = train_size
 
-        self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
-        self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.png')]
-        self.images = sorted(self.images)
-        self.gts = sorted(self.gts)
-        self.filter_files()
+        image_root = os.path.join(dataset_root, "images")
+        gt_root = os.path.join(dataset_root, "masks")
+        
+        self.images = []
+        for f in os.listdir(image_root):
+            if f.endswith('.jpg') or f.endswith('.png'):
+                file = os.path.join(image_root, f)
+                self.images.append(file)
+
+        self.gts = []
+        for f in os.listdir(gt_root):
+            if f.endswith('.png'):
+                file = os.path.join(gt_root, f)
+                self.gts.append(file)
+
+        self.images = natsorted(self.images)
+        self.gts = natsorted(self.gts)
         self.size = len(self.images)
 
-        print('Using RandomRotation, RandomFlip')
-        self.img_transform_wo_affine = transforms.Compose([
-            transforms.RandomRotation(90, expand=False, center=None, fill=None),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Resize((self.trainsize, self.trainsize)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                    [0.229, 0.224, 0.225])])
+        # Transforms
+        self.tf1 = A.Compose([
+            A.VerticalFlip(p=0.5),
+            A.HorizontalFlip(p=0.5),
+            A.Rotate(90),
+            A.Resize(self.train_size, self.train_size),
+        ])
+        self.tf2 = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.tf3 = albumentations.pytorch.transforms.ToTensorV2(transpose_mask=True)
 
-        self.gt_transform_wo_affine = transforms.Compose([
-            transforms.RandomRotation(90, expand=False, center=None, fill=None),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Resize((self.trainsize, self.trainsize)),
-            transforms.ToTensor()])
-
-        self.img_transform = transforms.Compose([
-            transforms.RandomRotation(90, expand=False, center=None, fill=None),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomAffine(degrees=0, scale=(0.5, 1)),
-            transforms.Resize((self.trainsize, self.trainsize)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                    [0.229, 0.224, 0.225])])
-
-        self.gt_transform = transforms.Compose([
-            transforms.RandomRotation(90, expand=False, center=None, fill=None),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomAffine(degrees=0, scale=(0.5, 1)),
-            transforms.Resize((self.trainsize, self.trainsize)),
-            transforms.ToTensor()])
-        
-    def _transform_small_polyp(self, image, gt):
-        # make a seed with numpy generator (we need image transform operate same as gt transform)
-        seed = np.random.randint(2147483647) 
-        random.seed(seed) # apply this seed to img tranfsorms
-        torch.manual_seed(seed) # needed for torchvision 0.7
-        if self.img_transform_wo_affine is not None:
-            image = self.img_transform_wo_affine(image)
-            
-        random.seed(seed) # apply this seed to img tranfsorms
-        torch.manual_seed(seed) # needed for torchvision 0.7
-        if self.gt_transform_wo_affine is not None:
-            gt = self.gt_transform_wo_affine(gt)
-        return image, gt
-
-    def _transform_big_polyp(self, image, gt):
-        # make a seed with numpy generator (we need image transform operate same as gt transform)
-        seed = np.random.randint(2147483647) 
-        random.seed(seed) # apply this seed to img tranfsorms
-        torch.manual_seed(seed) # needed for torchvision 0.7
-        if self.img_transform is not None:
-            image = self.img_transform(image)
-            
-        random.seed(seed) # apply this seed to img tranfsorms
-        torch.manual_seed(seed) # needed for torchvision 0.7
-        if self.gt_transform is not None:
-            gt = self.gt_transform(gt)
-        return image, gt
 
     def __getitem__(self, index):
-        
-        # Read as PIL images
-        image = self.rgb_loader(self.images[index])
-        gt = self.binary_loader(self.gts[index])
+        # Read image and mask
+        image = cv2.imread(self.images[index], cv2.IMREAD_COLOR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        gt = cv2.imread(self.gts[index], cv2.IMREAD_GRAYSCALE)
+        gt = np.expand_dims(gt, 2)
+        gt = (gt / 255).astype("float32")
         
         # Size of polyp
-        gt_np = np.array(gt)
-        percent = gt_np[gt_np > 0].size / gt_np.size * 100
+        # gt_np = np.array(gt)
+        # percent = gt_np[gt_np > 0].size / gt_np.size * 100
 
-        # Choose right transform
-        if percent > 2:
-            image, gt = self._transform_big_polyp(image, gt)
-        else:
-            image, gt = self._transform_small_polyp(image, gt)
+        res_tf1 = self.tf1(image=image, mask=gt)
+        image, gt = res_tf1['image'], res_tf1['mask']
+        image = self.tf2(image=image)['image']
+        res_tf3  = self.tf3(image=image, mask=gt)
+        image, gt = res_tf3['image'], res_tf3['mask']
 
         return image, gt
-
-    def filter_files(self):
-        assert len(self.images) == len(self.gts)
-        images = []
-        gts = []
-        for img_path, gt_path in zip(self.images, self.gts):
-            img = Image.open(img_path)
-            gt = Image.open(gt_path)
-            if img.size == gt.size:
-                images.append(img_path)
-                gts.append(gt_path)
-        self.images = images
-        self.gts = gts
-
-    def rgb_loader(self, path):
-        with open(path, 'rb') as f:
-            img = Image.open(f)
-            return img.convert('RGB')
-
-    def binary_loader(self, path):
-        with open(path, 'rb') as f:
-            img = Image.open(f)
-            # return img.convert('1')
-            return img.convert('L')
-
-    def resize(self, img, gt):
-        assert img.size == gt.size
-        w, h = img.size
-        if h < self.trainsize or w < self.trainsize:
-            h = max(h, self.trainsize)
-            w = max(w, self.trainsize)
-            return img.resize((w, h), Image.BILINEAR), gt.resize((w, h), Image.NEAREST)
-        else:
-            return img, gt
 
     def __len__(self):
         return self.size
 
 
-def get_loader(image_root, gt_root, batchsize, trainsize, shuffle=True, num_workers=4, pin_memory=True):
+def get_train_loader(train_root, batchsize, train_size, shuffle=True, num_workers=4, pin_memory=True):
 
-    dataset = PolypDataset(image_root, gt_root, trainsize)
+    dataset = TrainDataset(train_root, train_size)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batchsize,
                                   shuffle=shuffle,
@@ -150,39 +78,50 @@ def get_loader(image_root, gt_root, batchsize, trainsize, shuffle=True, num_work
                                   pin_memory=pin_memory)
     return data_loader
 
+class TestDatasets():
+    def __init__(self, test_root, train_size):
+        self.DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
+        self.test_root = test_root
+        self.train_size = train_size
+        
+        # Crete datasets object
+        datasets = {}
+        for name in self.DS_NAMES:
+            root = os.path.join(test_root, name)
+            imgs = os.listdir(os.path.join(root, "images"))
+            n_imgs = len(imgs)
+            datasets[name] = {
+                "root": root,
+                "imgs": imgs,
+                "n_imgs": n_imgs
+            }
+        self.datasets = datasets
 
-class test_dataset:
-    def __init__(self, image_root, gt_root, testsize):
-        self.testsize = testsize
-        self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
-        self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.tif') or f.endswith('.png')]
-        self.images = sorted(self.images)
-        self.gts = sorted(self.gts)
-        self.transform = transforms.Compose([
-            transforms.Resize((self.testsize, self.testsize)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                 [0.229, 0.224, 0.225])])
-        self.gt_transform = transforms.ToTensor()
-        self.size = len(self.images)
-        self.index = 0
+        # Transform 
+        self.img_transform = A.Compose([
+            A.Resize(self.train_size, self.train_size),
+            A.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
+            albumentations.pytorch.transforms.ToTensorV2(),
+        ])
 
-    def load_data(self):
-        image = self.rgb_loader(self.images[self.index])
-        image = self.transform(image).unsqueeze(0)
-        gt = self.binary_loader(self.gts[self.index])
-        name = self.images[self.index].split('/')[-1]
-        if name.endswith('.jpg'):
-            name = name.split('.jpg')[0] + '.png'
-        self.index += 1
-        return image, gt, name
+    def get_item(self, ds_name, index):
+        dataset = self.datasets[ds_name]
+        root = dataset["root"]
+        imgs = dataset["imgs"]
+        img_dir = os.path.join(root, "images")
+        gt_dir = os.path.join(root, "masks")
 
-    def rgb_loader(self, path):
-        with open(path, 'rb') as f:
-            img = Image.open(f)
-            return img.convert('RGB')
+        img_path = os.path.join(img_dir, imgs[index])
+        gt_path = os.path.join(gt_dir, imgs[index])
 
-    def binary_loader(self, path):
-        with open(path, 'rb') as f:
-            img = Image.open(f)
-            return img.convert('L')
+        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+        gt = (gt / 255).astype("float32")
+
+        transformed_image = self.img_transform(image=image)["image"]
+        
+        return image, transformed_image, gt

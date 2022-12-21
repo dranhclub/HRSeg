@@ -1,5 +1,5 @@
-from utils import clip_gradient, adjust_lr
-from dataloader import get_loader, test_dataset
+from utils import clip_gradient, adjust_lr, dice
+from dataloader import get_train_loader, TestDatasets
 from model import PolypSeg
 import torch
 from torch.autograd import Variable
@@ -7,8 +7,6 @@ import torch.nn.functional as F
 import os
 import argparse
 from datetime import datetime
-import numpy as np
-import logging
 from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter()
 
@@ -28,45 +26,31 @@ def structure_loss(pred, mask):
     return (wbce + wiou).mean()
 
 
-def test(model, test_ds_path):
+def test(model, test_root, epoch):
+    model.eval()
     dice_record = {}
-    for dataset in ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']:
-        data_path = os.path.join(test_ds_path, dataset)
-        image_root = '{}/images/'.format(data_path)
-        gt_root = '{}/masks/'.format(data_path)
-        model.eval()
-        n_imgs = len(os.listdir(gt_root))
-        test_loader = test_dataset(image_root, gt_root, 352)
-        DSC = 0.0
+    test_loader = TestDatasets(test_root, 352)
+    for ds_name in test_loader.DS_NAMES:
+        sum_dice_score = 0.0
+        n_imgs = test_loader.datasets[ds_name]["n_imgs"]
         for i in range(n_imgs):
-            image, gt, name = test_loader.load_data()
-            gt = np.asarray(gt, np.float32)
-            gt /= (gt.max() + 1e-8)
-            image = image.cuda()
+            # Get img, mask
+            _, image, gt = test_loader.get_item(ds_name, i)
+            image = image.unsqueeze(0).cuda()
 
+            # Infer
             res = model(image)
-            # eval Dice
-            res = F.upsample(res, size=gt.shape,
-                             mode='bilinear', align_corners=False)
+            res = F.upsample(res, size=gt.shape, mode='bilinear', align_corners=False)
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
-            input = res
-            target = np.array(gt)
-            smooth = 1
-            input_flat = np.reshape(input, (-1))
-            target_flat = np.reshape(target, (-1))
-            intersection = (input_flat * target_flat)
-            dice = (2 * intersection.sum() + smooth) / \
-                (input.sum() + target.sum() + smooth)
-            dice = '{:.4f}'.format(dice)
-            dice = float(dice)
-            DSC = DSC + dice
+            
+            # Eval dice
+            dice_score = dice(res, gt)
+            sum_dice_score = sum_dice_score + dice_score
 
-        dataset_dice = DSC / n_imgs
-
-        print(dataset, ': ', dataset_dice)
-
-        dice_record[dataset] = dataset_dice
+        mean_dice = sum_dice_score / n_imgs
+        print(f"{ds_name}: {mean_dice*100:.2f} %")
+        dice_record[ds_name] = mean_dice
 
     writer.add_scalars('Test dice', dice_record, global_step=epoch * n_steps_per_epoch)
 
@@ -122,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize', type=int,
                         default=2, help='training batch size')
 
-    parser.add_argument('--trainsize', type=int,
+    parser.add_argument('--train_size', type=int,
                         default=352, help='training dataset size')
 
     parser.add_argument('--clip', type=float,
@@ -137,11 +121,11 @@ if __name__ == '__main__':
     parser.add_argument('--decay_epoch', type=int,
                         default=50, help='every n epochs decay learning rate')
 
-    parser.add_argument('--train_path', type=str,
+    parser.add_argument('--train_root', type=str,
                         default='./dataset/TrainDataset/',
                         help='path to train dataset')
 
-    parser.add_argument('--test_path', type=str,
+    parser.add_argument('--test_root', type=str,
                         default='./dataset/TestDataset/',
                         help='path to testing Kvasir dataset')
 
@@ -167,11 +151,7 @@ if __name__ == '__main__':
     print(optimizer)
 
     # Dataloader
-    image_root = '{}/images/'.format(opt.train_path)
-    gt_root = '{}/masks/'.format(opt.train_path)
-    # train_loader = get_loader(image_root, gt_root, batchsize=opt.batchsize, trainsize=opt.trainsize)
-    train_loader = get_loader(
-        image_root, gt_root, batchsize=opt.batchsize, trainsize=opt.trainsize, num_workers=1)
+    train_loader = get_train_loader(train_root=opt.train_root, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
 
     # Start training
     print("#" * 20, "Start Training", "#" * 20)
@@ -181,5 +161,5 @@ if __name__ == '__main__':
         adjust_lr(optimizer, opt.lr, epoch, 0.1, opt.epoch + 1)
         train(train_loader, model, optimizer, epoch)
         if epoch % opt.n_epochs_per_test == 0:
-            test(model, test_ds_path=opt.test_path)
+            test(model, opt.test_root, epoch)
             save(model, opt.save_path, epoch, start_timestamp)
