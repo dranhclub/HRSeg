@@ -8,21 +8,15 @@ DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolyp
 
 DS_PATH = './dataset/TestDataset'
 
-# PRED_PATH = './result_map/PolypPVT' # result when inference 1 step
-# PRED_PATH = './result_map/twostep' # result when inferenec 2 step
-# PRED_PATH = './result_map/affine_big_only'
-PRED_PATH = './result_map/testsize352'
-
-
+PRED_PATH = './result_map/albumen'
 
 img_idx = 0
 
-all_ds_percents = []
-all_ds_dice_scores = []
+all_ds_percents = {}
+all_ds_dice_scores = {}
 
 # For each dataset
-for ds_idx, ds in enumerate(DS_NAMES):
-    print("Dataset: ", ds)
+for ds_idx, ds_name in enumerate(DS_NAMES):
     percents = []
     dice_scores = []
 
@@ -56,35 +50,30 @@ for ds_idx, ds in enumerate(DS_NAMES):
         dice_score = dice(gt / 255, pred / 255) * 100
         dice_scores.append(dice_score)
 
-    print("Mean dice=", np.mean(dice_scores))
+    mean_dice = np.mean(dice_scores)
+    print(f"{ds_name}: {mean_dice:.2f} %")
 
-    # # Plot histogram for this dataset
-    # plt.hist(percents, bins=30)
-    # plt.title("Dataset: " + ds)
-    # plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-    # plt.ylabel("# Images")
-    # plt.show()
+    all_ds_percents[ds_name] = percents
+    all_ds_dice_scores[ds_name] = dice_scores
 
-    # # Plot scatter for this dataset
-    # plt.scatter(percents, dice_scores)
-    # plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-    # plt.ylabel("Dice score (%)")
-    # plt.title("Dataset: " + ds)
-    # plt.show()
+plt.figure(figsize=(20, 11))
+for i in range(len(all_ds_percents)):
+    ds_name = DS_NAMES[i]
+    percents = all_ds_percents[ds_name]
+    dice_scores = all_ds_dice_scores[ds_name]
 
-    all_ds_percents.extend(percents)
-    all_ds_dice_scores.extend(dice_scores)
+    # Plot histogram of polyp sizes for this dataset
+    plt.subplot(2, 5, i + 1)
+    plt.hist(percents, bins=50)
+    plt.title("Dataset: " + ds_name)
+    plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
+    plt.ylabel("# Images")
 
-# # Plot histogram for all dataset
-# plt.hist(all_ds_percents, bins=30)
-# plt.title("Dataset: all")
-# plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-# plt.ylabel("# Images")
-# plt.show()
+    # Plot dice score versus polyp size for this dataset
+    plt.subplot(2, 5, i + 1 + 5)
+    plt.scatter(percents, dice_scores)
+    plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
+    plt.ylabel("Dice score (%)")
+    plt.title("Dataset: " + ds_name)
 
-# # Plot scatter for all dataset
-# plt.scatter(all_ds_percents, all_ds_dice_scores)
-# plt.xlabel("Percentage of [#white pixel]/[#pixel] (%)")
-# plt.ylabel("Dice score (%)")
-# plt.title("Dataset: all")
-# plt.show()
+plt.show()
