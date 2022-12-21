@@ -36,12 +36,10 @@ DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolyp
 
 DS_PATH = './dataset/TestDataset'
 
-PRED_PATH = './result_map/onestep' # result when inference 1 step
-# PRED_PATH = './result_map/twostep' # result when inferenec 2 step
-# PRED_PATH = './result_map/affine_big_only'
+PRED_PATH = './result_map/spatter_noise'
 
-WINNAME = 'Baseline'
-SAVE_PATH = 'captured/onestep'
+WINNAME = 'spatter_noise'
+SAVE_PATH = 'captured/spatter_noise'
 
 ds_idx = 0
 img_idx = 0

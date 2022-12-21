@@ -8,7 +8,7 @@ DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolyp
 
 DS_PATH = './dataset/TestDataset'
 
-PRED_PATH = './result_map/albumen'
+PRED_PATH = './result_map/spatter_noise'
 
 img_idx = 0
 

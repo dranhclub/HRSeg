@@ -1,5 +1,4 @@
 import os
-from PIL import Image
 import torch.utils.data as data
 import numpy as np
 from natsort import natsorted
@@ -11,29 +10,32 @@ class TrainDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, dataset_root, train_size):
+    def __init__(self, dataset_roots, train_size):
         self.train_size = train_size
 
-        image_root = os.path.join(dataset_root, "images")
-        gt_root = os.path.join(dataset_root, "masks")
-        
+        ##### Get file paths
         self.images = []
-        for f in os.listdir(image_root):
-            if f.endswith('.jpg') or f.endswith('.png'):
-                file = os.path.join(image_root, f)
-                self.images.append(file)
-
         self.gts = []
-        for f in os.listdir(gt_root):
-            if f.endswith('.png'):
-                file = os.path.join(gt_root, f)
-                self.gts.append(file)
+
+        for dataset_root in dataset_roots:
+            image_root = os.path.join(dataset_root, "images")
+            gt_root = os.path.join(dataset_root, "masks")
+            
+            for f in os.listdir(image_root):
+                if f.endswith('.jpg') or f.endswith('.png'):
+                    file = os.path.join(image_root, f)
+                    self.images.append(file)
+
+            for f in os.listdir(gt_root):
+                if f.endswith('.png'):
+                    file = os.path.join(gt_root, f)
+                    self.gts.append(file)
 
         self.images = natsorted(self.images)
         self.gts = natsorted(self.gts)
         self.size = len(self.images)
 
-        # Transforms
+        ###### Transforms
         self.tf0 = A.RandomScale(p=0.5, interpolation=0, scale_limit=(-0.5, -0.5))
         self.tf1 = A.Compose([
             A.PadIfNeeded(p=1.0, min_height=train_size, min_width=train_size),

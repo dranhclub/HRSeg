@@ -121,9 +121,10 @@ if __name__ == '__main__':
     parser.add_argument('--decay_epoch', type=int,
                         default=50, help='every n epochs decay learning rate')
 
-    parser.add_argument('--train_root', type=str,
-                        default='./dataset/TrainDataset/',
-                        help='path to train dataset')
+    parser.add_argument('--train_roots',
+                    default=['./dataset/TrainDataset/', './dataset/TrainDataset_synthesis/'],
+                    nargs='+',
+                    help='path to train datasets')
 
     parser.add_argument('--test_root', type=str,
                         default='./dataset/TestDataset/',

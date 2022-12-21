@@ -7,9 +7,9 @@ from dataloader import TestDatasets
 
 TEST_SIZE = 352
 TEST_ROOT = './dataset/TestDataset'
-PTH_PATH = './model_pth/PolypSeg.e_120.Dec20.albumen.pth'
+PTH_PATH = './model_pth/PolypSeg.e_200.Dec21.spatter.pth'
 
-SAVE_ROOT_DIR = './result_map/albumen/'
+SAVE_ROOT_DIR = './result_map/spatter_noise/'
 
 # Prepare model
 model = PolypSeg()
