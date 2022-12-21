@@ -94,7 +94,7 @@ while True:
     if show_pred:
         frame = blend(frame, (0, 255, 0), pred, alpha=0.5)
 
-    # Text: dataset, image, scale
+    # Text: dataset, image, scale, size
     text1 = f"Dataset {ds_idx}: {DS_NAMES[ds_idx]}"
     text2 = f"Image {img_idx}/{len(imgs) - 1}: {gt_filename}"
     text3 = f"Scale {scale}x (origin size: {img_width}x{img_height})"
