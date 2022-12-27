@@ -152,7 +152,7 @@ if __name__ == '__main__':
     print(optimizer)
 
     # Dataloader
-    train_loader = get_train_loader(train_root=opt.train_root, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
+    train_loader = get_train_loader(train_roots=opt.train_roots, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
 
     # Start training
     print("#" * 20, "Start Training", "#" * 20)

@@ -38,7 +38,7 @@ class TrainDataset(data.Dataset):
         ###### Transforms
         self.tf0 = A.RandomScale(p=0.5, interpolation=0, scale_limit=(-0.5, -0.5))
         self.tf1 = A.Compose([
-            A.PadIfNeeded(p=1.0, min_height=train_size, min_width=train_size),
+            # A.PadIfNeeded(p=1.0, min_height=train_size, min_width=train_size),
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.Rotate(90),
@@ -58,11 +58,11 @@ class TrainDataset(data.Dataset):
         gt = (gt / 255).astype("float32")
         
         # Apply downscale if polyp size > 2%
-        gt_np = np.array(gt)
-        percent = gt_np[gt_np > 0].size / gt_np.size * 100
-        if percent > 2:
-            res_tf0 = self.tf0(image=image, mask=gt)
-            image, gt = res_tf0['image'], res_tf0['mask']
+        # gt_np = np.array(gt)
+        # percent = gt_np[gt_np > 0].size / gt_np.size * 100
+        # if percent > 2:
+        #     res_tf0 = self.tf0(image=image, mask=gt)
+        #     image, gt = res_tf0['image'], res_tf0['mask']
 
         # Apply augment
         res_tf1 = self.tf1(image=image, mask=gt)
@@ -81,9 +81,9 @@ class TrainDataset(data.Dataset):
         return self.size
 
 
-def get_train_loader(train_root, batchsize, train_size, shuffle=True, num_workers=4, pin_memory=True):
+def get_train_loader(train_roots, batchsize, train_size, shuffle=True, num_workers=4, pin_memory=True):
 
-    dataset = TrainDataset(train_root, train_size)
+    dataset = TrainDataset(train_roots, train_size)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batchsize,
                                   shuffle=shuffle,

@@ -1,17 +1,9 @@
-# Visualize image, grouth truth and prediction
-# How to use:
-# [a, d]: change image index
-# [q, e]: change dataset index
-# [+, -]: change image scale
-# [g]   : show ground truth
-# [p]   : show predict
-# [ESQ] : quit
-
 import cv2
 import os
 import numpy as np
 from utils import dice
-from natsort import natsorted
+from utils import get_test_img_gt_path, get_test_result_path, get_filenames
+from utils import DS_NAMES, CAPTURE_ROOT
 
 def blend(background, foreground_color, mask, alpha):
     '''
@@ -32,122 +24,131 @@ def blend(background, foreground_color, mask, alpha):
     img = np.uint8(img * 255)
     return img
 
-DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
+class Visualizer():
+    """
+    Visualize image, grouth truth and prediction
 
-DS_PATH = './dataset/TestDataset'
+    How to use:
+    [a, d]: change image index
+    [q, e]: change dataset index
+    [+, -]: change image scale
+    [g]   : show ground truth
+    [p]   : show predict
+    [ESQ] : quit
+    """
 
-PRED_PATH = './result_map/spatter_noise'
+    def __init__(self, name):
+        self.name = name
+        self.scale = 1
+        self.show_gt = True
+        self.show_pred = True
+        self.set_dataset_by_index(0)
+        self.winname = f"Visualization for {name}"
+        self.capture_dir = os.path.join(CAPTURE_ROOT, name)
 
-WINNAME = 'spatter_noise'
-SAVE_PATH = 'captured/spatter_noise'
+    def set_dataset_by_name(self, ds_name):
+        index = DS_NAMES.index(ds_name)
+        self.set_dataset_by_index(index)
 
-ds_idx = 0
-img_idx = 0
-scale = 1
-show_gt = True
-show_pred = True
+    def set_dataset_by_index(self, index):
+        self.ds_idx = index % len(DS_NAMES)
+        self.ds_name = DS_NAMES[self.ds_idx]
+        self.n_imgs = len(get_filenames(self.ds_name))
+        self.set_image_by_index(0)
 
-while True:
-    ds_idx = ds_idx % len(DS_NAMES)
+    def set_image_by_index(self, index):
+        self.img_idx = index
 
-    # Get file name by index
-    img_dir = f"{DS_PATH}/{DS_NAMES[ds_idx]}/images"
-    imgs = natsorted(os.listdir(img_dir))
-    img_idx = img_idx % len(imgs)
-    img_filename = imgs[img_idx]
-    img_path = f"{DS_PATH}/{DS_NAMES[ds_idx]}/images/{img_filename}"
+    def show(self):
+        while True:
+            # Get img, gt, pred paths
+            filename, img_path, gt_path = get_test_img_gt_path(self.ds_name, self.img_idx)
+            pred_path = get_test_result_path(self.name, self.ds_name, self.img_idx)
 
-    gt_dir = f"{DS_PATH}/{DS_NAMES[ds_idx]}/masks"
-    gt_filename = imgs[img_idx]
-    gt_path = f"{DS_PATH}/{DS_NAMES[ds_idx]}/masks/{gt_filename}"
+            # Read imgs
+            img = cv2.imread(img_path)
+            gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+            pred = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)
 
-    pred_dir = f"{PRED_PATH}/{DS_NAMES[ds_idx]}"
-    pred_filename = imgs[img_idx]
-    pred_path = f"{PRED_PATH}/{DS_NAMES[ds_idx]}/{pred_filename}"
+            # Get original weight, height
+            img_height, img_width = img.shape[0], img.shape[1]
 
-    print(gt_path, pred_path)
+            # Resize
+            img = cv2.resize(img, None, fx=self.scale, fy=self.scale)
+            gt = cv2.resize(gt, None, fx=self.scale, fy=self.scale)
+            pred = cv2.resize(pred, None, fx=self.scale, fy=self.scale)
+            
+            # Get resized image width, height
+            img_scaled_height, img_scaled_width = img.shape[0], img.shape[1]
 
-    # Read imgs
-    img = cv2.imread(img_path)
-    gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
-    pred = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)
+            # Frame to show
+            frame = np.copy(img)
 
-    # Get original weight, height
-    img_height, img_width = img.shape[0], img.shape[1]
+            # Blend gt
+            if self.show_gt:
+                frame = blend(frame, (255, 255, 255), gt, alpha=0.85)
+            
+            # Blend prediction
+            if self.show_pred:
+                frame = blend(frame, (0, 255, 0), pred, alpha=0.5)
 
-    # Scale
-    img = cv2.resize(img, None, fx=scale, fy=scale)
-    gt = cv2.resize(gt, None, fx=scale, fy=scale)
-    pred = cv2.resize(pred, None, fx=scale, fy=scale)
-    
-    # Get scaled width, height
-    img_scaled_height, img_scaled_width = img.shape[0], img.shape[1]
+            # Text: dataset, image, scale, size
+            text1 = f"Dataset {self.ds_idx}: {self.ds_name}"
+            text2 = f"Image {self.img_idx}/{self.n_imgs - 1}: {filename}"
+            text3 = f"Scale {self.scale}x (origin size: {img_width}x{img_height})"
+            cv2.putText(img=frame, text=text1, org=(10, 40), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+            cv2.putText(img=frame, text=text2, org=(10, 60), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+            cv2.putText(img=frame, text=text3, org=(10, 80), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
 
-    # Frame to show
-    frame = np.copy(img)
+            # Text: percent of white pixel
+            percent = gt[gt > 0].size / gt.size * 100
+            text = f"Size: {percent:.1f} %"
+            cv2.putText(img=frame, text=text, org=(10, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
 
-    # Blend gt
-    if show_gt:
-        frame = blend(frame, (255, 255, 255), gt, alpha=0.85)
-    
-    # Blend prediction
-    if show_pred:
-        frame = blend(frame, (0, 255, 0), pred, alpha=0.5)
+            # Text: Dice score
+            dice_score = dice(pred / 255, gt / 255) * 100
+            text = f"Dice score: {dice_score:.2f} %"
+            cv2.putText(img=frame, text=text, org=(10, 120), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
 
-    # Text: dataset, image, scale, size
-    text1 = f"Dataset {ds_idx}: {DS_NAMES[ds_idx]}"
-    text2 = f"Image {img_idx}/{len(imgs) - 1}: {gt_filename}"
-    text3 = f"Scale {scale}x (origin size: {img_width}x{img_height})"
-    cv2.putText(img=frame, text=text1, org=(10, 40), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-    cv2.putText(img=frame, text=text2, org=(10, 60), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-    cv2.putText(img=frame, text=text3, org=(10, 80), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-
-    # Text: percent of white pixel
-    percent = gt[gt > 0].size / gt.size * 100
-    text = f"Size: {percent:.1f} %"
-    cv2.putText(img=frame, text=text, org=(10, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-
-    # Text: Dice score
-    dice_score = dice(pred / 255, gt / 255) * 100
-    text = f"Dice score: {dice_score:.2f} %"
-    cv2.putText(img=frame, text=text, org=(10, 120), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-
-    # Text: Prediction folder
-    text = f"Pred: {PRED_PATH}"
-    cv2.putText(img=frame, text=text, org=(10, img_scaled_height - 10), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-
-    # Show
-    cv2.imshow(WINNAME, frame)
-
-    key = cv2.waitKey(0) & 0xFF
-    if key == ord("d"):
-        img_idx += 1
-    elif key == ord("a"):
-        img_idx -= 1
-    elif key == ord("q"):
-        img_idx = 0
-        ds_idx -= 1
-    elif key == ord("e"):
-        img_idx = 0
-        ds_idx += 1
-    elif key == ord("+"):
-        scale += 0.25
-    elif key == ord("-"):
-        scale -= 0.25
-    elif key == ord("g"):
-        show_gt = not show_gt
-    elif key == ord("p"):
-        show_pred = not show_pred
-    elif key == ord("c"): # Capture 
-        # Make dir
-        os.makedirs(SAVE_PATH, exist_ok=True)
-        # Save
-        ds_name = DS_NAMES[ds_idx]
-        path_to_save = os.path.join(SAVE_PATH, f"{ds_name}.{img_filename}")
-        cv2.imwrite(path_to_save, frame)
-        print("Saved", path_to_save)
-    elif key == 27:
-        break
+            # Text: Experiment name
+            text = f"Experiment name: {self.name}"
+            cv2.putText(img=frame, text=text, org=(10, img_scaled_height - 10), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
 
 
-cv2.destroyAllWindows()
+            # Show
+            cv2.imshow(self.winname, frame)
+
+            key = cv2.waitKey(0) & 0xFF
+            if key == ord("d"):
+                self.set_image_by_index(self.img_idx + 1)
+            elif key == ord("a"):
+                self.set_image_by_index(self.img_idx - 1)
+            elif key == ord("q"):
+                self.set_image_by_index(0)
+                self.set_dataset_by_index(self.ds_idx - 1)
+            elif key == ord("e"):
+                self.set_image_by_index(0)
+                self.set_dataset_by_index(self.ds_idx + 1)
+            elif key == ord("+"):
+                self.scale += 0.25
+            elif key == ord("-"):
+                self.scale -= 0.25
+            elif key == ord("g"):
+                self.show_gt = not self.show_gt
+            elif key == ord("p"):
+                self.show_pred = not self.show_pred
+            elif key == ord("c"): # Capture 
+                # Make dir
+                os.makedirs(self.capture_dir, exist_ok=True)
+                # Save
+                save_path = os.path.join(self.capture_dir, f"{self.ds_name}.{filename}")
+                cv2.imwrite(save_path, frame)
+                print("Saved", save_path)
+            elif key == 27:
+                break
+
+        cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    v = Visualizer("spatter_noise")
+    v.show()

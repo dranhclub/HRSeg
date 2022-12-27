@@ -7,7 +7,7 @@ from dataloader import TestDatasets
 
 TEST_SIZE = 352
 TEST_ROOT = './dataset/TestDataset'
-PTH_PATH = './model_pth/PolypSeg.e_200.Dec21.spatter.pth'
+PTH_PATH = './model_pth/PolypSeg.e_100.Dec21-15h15.cutmix.sunseg.pth'
 
 SAVE_ROOT_DIR = './result_map/spatter_noise/'
 

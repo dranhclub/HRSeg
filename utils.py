@@ -2,7 +2,15 @@ import torch
 import numpy as np
 from thop import profile
 from thop import clever_format
-from PIL import Image
+import os
+from natsort import natsorted
+
+# Constants
+DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
+TEST_ROOT = './dataset/TestDataset'
+TRAIN_ROOT = './dataset/TrainDataset'
+RESULT_ROOT = './result_map'
+CAPTURE_ROOT = './captured'
 
 def clip_gradient(optimizer, grad_clip):
     """
@@ -21,29 +29,6 @@ def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
     decay = decay_rate ** (epoch // decay_epoch)
     for param_group in optimizer.param_groups:
         param_group['lr'] *= decay
-
-
-class AvgMeter(object):
-    def __init__(self, num=40):
-        self.num = num
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-        self.losses = []
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-        self.losses.append(val)
-
-    def show(self):
-        return torch.mean(torch.stack(self.losses[np.maximum(len(self.losses)-self.num, 0):]))
 
 
 def CalParams(model, input_tensor):
@@ -71,3 +56,34 @@ def dice(input, target):
     intersection = (input_flat * target_flat)
     dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
     return dice
+
+
+def get_filenames(ds_name):
+    img_dir = f"{TEST_ROOT}/{ds_name}/images"
+    imgs = natsorted(os.listdir(img_dir))
+
+    return imgs
+
+def get_test_img_gt_path(ds_name, img_idx):
+    imgs = get_filenames(ds_name)
+
+    # Get filename
+    img_filename = imgs[img_idx]
+
+    # Get img
+    img_path = f"{TEST_ROOT}/{ds_name}/images/{img_filename}"
+
+    # Get gt
+    gt_path = f"{TEST_ROOT}/{ds_name}/masks/{img_filename}"
+
+    return img_filename, img_path, gt_path
+
+def get_test_result_path(name, ds_name, img_idx):
+    result_dir = os.path.join(RESULT_ROOT, name)
+    imgs = get_filenames(ds_name)
+
+    # Get prediction path
+    pred_filename = imgs[img_idx]
+    ret = f"{result_dir}/{ds_name}/{pred_filename}"
+
+    return ret
