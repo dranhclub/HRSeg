@@ -4,11 +4,13 @@ from thop import profile
 from thop import clever_format
 import os
 from natsort import natsorted
+import cv2
 
 # Constants
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
+TRAIN_DS_NAMES = ['TrainDataset', 'SunDataset', 'TrainDataset_synthesis']
 TEST_ROOT = './dataset/TestDataset'
-TRAIN_ROOT = './dataset/TrainDataset'
+DATA_ROOT = './dataset'
 RESULT_ROOT = './result_map'
 CAPTURE_ROOT = './captured'
 
@@ -57,33 +59,69 @@ def dice(input, target):
     dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
     return dice
 
+class RawDataset():
+    def __init__(self, root, names) -> None:
+        self.filenames = {}
+        self.root = root
+        self.names = names
+        for ds_name in self.names:
+            self.filenames[ds_name] = self.get_filenames(ds_name)
 
-def get_filenames(ds_name):
-    img_dir = f"{TEST_ROOT}/{ds_name}/images"
-    imgs = natsorted(os.listdir(img_dir))
+    def get_filenames(self, ds_name):
+        img_dir = f"{self.root}/{ds_name}/images"
+        filenames = natsorted(os.listdir(img_dir))
+        return filenames
 
-    return imgs
+    def get_img_path(self, ds_name, img_idx):
+        filename = self.filenames[ds_name][img_idx]
+        return os.path.join(self.root, ds_name, "images", filename)
+    
+    def get_gt_path(self, ds_name, img_idx):
+        filename = self.filenames[ds_name][img_idx]
+        return os.path.join(self.root, ds_name, "masks", filename)
 
-def get_test_img_gt_path(ds_name, img_idx):
-    imgs = get_filenames(ds_name)
+    def get_path(self, ds_name, img_idx):
+        filename = self.filenames[ds_name][img_idx]
+        img_path = self.get_img_path(ds_name, img_idx)
+        gt_path = self.get_gt_path(ds_name, img_idx)
+        return filename, img_path, gt_path
+    
+    def get_img(self, ds_name, img_idx):
+        """Return BGR image"""
+        path = self.get_img_path(ds_name, img_idx)
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
+        return img
 
-    # Get filename
-    img_filename = imgs[img_idx]
+    def get_gt(self, ds_name, img_idx):
+        """Return binary mask"""
+        path = self.get_gt_path(ds_name, img_idx)
+        gt = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        return gt
 
-    # Get img
-    img_path = f"{TEST_ROOT}/{ds_name}/images/{img_filename}"
+def get_train_raw_dataset():
+    return RawDataset(DATA_ROOT, TRAIN_DS_NAMES)
 
-    # Get gt
-    gt_path = f"{TEST_ROOT}/{ds_name}/masks/{img_filename}"
+def get_test_raw_dataset():
+    return RawDataset(TEST_ROOT, DS_NAMES)
 
-    return img_filename, img_path, gt_path
+class RawResult():
+    def __init__(self, name) -> None:
+        self.name = name
+        self.root = RESULT_ROOT
+        self.filenames = {}
+        for ds_name in DS_NAMES:
+            self.filenames[ds_name] = self.get_filenames(ds_name)
+    
+    def get_filenames(self, ds_name):
+        dir = f"{self.root}/{self.name}/{ds_name}"
+        filenames = natsorted(os.listdir(dir))
+        return filenames
+    
+    def get_result_path(self, ds_name, img_idx):
+        path = os.path.join(self.root, self.name, ds_name, self.filenames[ds_name][img_idx])
+        return path
 
-def get_test_result_path(name, ds_name, img_idx):
-    result_dir = os.path.join(RESULT_ROOT, name)
-    imgs = get_filenames(ds_name)
-
-    # Get prediction path
-    pred_filename = imgs[img_idx]
-    ret = f"{result_dir}/{ds_name}/{pred_filename}"
-
-    return ret
+    def get_result(self, ds_name, img_idx):
+        """Return binary image"""
+        path = self.get_result_path(ds_name, img_idx)
+        return cv2.imread(path, cv2.IMREAD_GRAYSCALE)

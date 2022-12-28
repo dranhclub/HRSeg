@@ -4,3 +4,5 @@ model_pth/
 pretrained_pth/
 result_map/
 result_map2/
+captured/
+runs/

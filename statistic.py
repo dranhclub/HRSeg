@@ -1,14 +1,12 @@
 # Statistic and analysis results
 
 import cv2
-import os
-import numpy as np
 import matplotlib.pyplot as plt
-from utils import dice, get_test_img_gt_path, get_test_result_path, get_filenames
+from utils import dice, get_test_raw_dataset, get_train_raw_dataset, RawResult
 from visualize import Visualizer
 from utils import DS_NAMES
-
-NAME = "spatter_noise"
+import argparse
+import numpy as np
 
 def dice_vs_size():
     result = {
@@ -38,17 +36,15 @@ def dice_vs_size():
     for ds_name in DS_NAMES:
         print("Processing", ds_name)
 
-        imgs = get_filenames(ds_name)        
+        test_raw_dataset = get_test_raw_dataset()
+        raw_result = RawResult(NAME)
 
         # For each img
-        for img_idx in range(len(imgs)):
-
-            filename, img_path, gt_path = get_test_img_gt_path(ds_name, img_idx)
-            pred_path = get_test_result_path(NAME, ds_name, img_idx)
+        for img_idx in range(len(test_raw_dataset.filenames[ds_name])):
 
             # Read GT, pred
-            gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
-            pred = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)
+            gt = test_raw_dataset.get_gt(ds_name, img_idx)
+            pred = raw_result.get_result(ds_name, img_idx)
 
             # Percentage of white pixel per total number of pixel
             percent = gt[gt > 0].size / gt.size * 100
@@ -61,10 +57,6 @@ def dice_vs_size():
     print("Process done!")
     return result
 
-
-result = dice_vs_size()
-
-
 def combine(result):
     new_result = result.copy()
     new_result["all"] = {
@@ -76,33 +68,49 @@ def combine(result):
         new_result["all"]["dice"].extend(value["dice"])
     return new_result
 
+def calc_mean_and_print(result):
+    print("=====Mean dice=====")
+    for ds_name, value in result.items():
+        m = np.mean(value["dice"])
+        print(f"{ds_name}: {m:.2f} %")   
+    print("===================")
 
-result_combined = combine(result)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("Statistic")
+    parser.add_argument("--name", type=str, default="PolypPVT")
+    opt = parser.parse_args()
 
-################### Plot & Visualize ###################
-visualizer = Visualizer(NAME)
-
-def onpick(event):
-    hit_list = event.ind
-    img_idx = hit_list[0]
-    ds_name = event.artist.axes.get_title()
-    ds_idx = DS_NAMES.index(ds_name)
-    print(ds_name, img_idx)
-
-    visualizer.set_dataset_by_name(ds_name)
-    visualizer.set_image_by_index(img_idx)
-    visualizer.show()
+    NAME = opt.name
+    print("NAME =", NAME)
     
-fig = plt.figure(figsize=(18, 10))
-suptitle = fig.suptitle(f"[{NAME}] Scatter plot for dice score by polyp size", fontsize="x-large")
-for i, (ds_name, value) in enumerate(result_combined.items()):
-    ax = fig.add_subplot(2,3,i+1)
-    ax.scatter(value["size"], value["dice"], picker=True)
-    ax.set_title(ds_name)
-    ax.set_xlabel("Polyp size")
-    ax.set_ylabel("Dice score")
+    ########## Calculate
+    result = dice_vs_size()
+    result_combined = combine(result)
+    calc_mean_and_print(result_combined)
 
-fig.canvas.mpl_connect('pick_event', onpick)
-plt.show()
+    ########## Plot and visualize
+    visualizer = Visualizer(NAME)
+
+    def onpick(event):
+        hit_list = event.ind
+        img_idx = hit_list[0]
+        ds_name = event.artist.axes.get_title()
+        print(ds_name, img_idx)
+
+        visualizer.set_dataset_by_name(ds_name)
+        visualizer.set_image_by_index(img_idx)
+        visualizer.show()
+        
+    fig = plt.figure(figsize=(18, 10))
+    suptitle = fig.suptitle(f"[{NAME}] Scatter plot for dice score by polyp size", fontsize="x-large")
+    for i, (ds_name, value) in enumerate(result_combined.items()):
+        ax = fig.add_subplot(2,3,i+1)
+        ax.scatter(value["size"], value["dice"], picker=True)
+        ax.set_title(ds_name)
+        ax.set_xlabel("Polyp size")
+        ax.set_ylabel("Dice score")
+
+    fig.canvas.mpl_connect('pick_event', onpick)
+    plt.show()
 
 

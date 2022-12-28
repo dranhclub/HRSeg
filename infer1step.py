@@ -4,12 +4,19 @@ import os
 from model import PolypSeg
 import cv2
 from dataloader import TestDatasets
+from utils import TEST_ROOT, RESULT_ROOT
+import shutil
 
 TEST_SIZE = 352
-TEST_ROOT = './dataset/TestDataset'
-PTH_PATH = './model_pth/PolypSeg.e_100.Dec21-15h15.cutmix.sunseg.pth'
+PTH_PATH = './model_pth/PolypSeg.e_120.Dec20.albumen.pth'
 
-SAVE_ROOT_DIR = './result_map/spatter_noise/'
+name = '.'.join(PTH_PATH.split('/')[-1].split('.')[1:-1])
+print("NAME=", name)
+save_dir = os.path.join(RESULT_ROOT, name)
+print("save_dir=", save_dir)
+
+shutil.rmtree(save_dir, ignore_errors=True)
+os.makedirs(save_dir, exist_ok=True)
 
 # Prepare model
 model = PolypSeg()
@@ -21,9 +28,8 @@ test_loader = TestDatasets(TEST_ROOT, 352)
 
 for ds_name in test_loader.DS_NAMES:
     # Make save folder if not exist
-    save_dir = os.path.join(SAVE_ROOT_DIR, ds_name)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    save_sub_dir = os.path.join(save_dir, ds_name)
+    os.makedirs(save_sub_dir, exist_ok=True)
 
     n_imgs = test_loader.datasets[ds_name]["n_imgs"]
     for i in range(n_imgs):
@@ -39,7 +45,7 @@ for ds_name in test_loader.DS_NAMES:
 
         # Save
         img_filename = test_loader.datasets[ds_name]["imgs"][i]
-        save_path = os.path.join(save_dir, img_filename)
+        save_path = os.path.join(save_sub_dir, img_filename)
         cv2.imwrite(save_path, res * 255)
     
     print("Done", ds_name)

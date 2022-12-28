@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 from utils import dice
-from utils import get_test_img_gt_path, get_test_result_path, get_filenames
+from utils import get_test_raw_dataset, get_train_raw_dataset, RawResult
 from utils import DS_NAMES, CAPTURE_ROOT
 
 def blend(background, foreground_color, mask, alpha):
@@ -42,9 +42,12 @@ class Visualizer():
         self.scale = 1
         self.show_gt = True
         self.show_pred = True
-        self.set_dataset_by_index(0)
         self.winname = f"Visualization for {name}"
         self.capture_dir = os.path.join(CAPTURE_ROOT, name)
+        self.text_color = (189, 255, 206)
+        self.test_raw_dataset = get_test_raw_dataset()
+        self.raw_result = RawResult(name)
+        self.set_dataset_by_index(0)
 
     def set_dataset_by_name(self, ds_name):
         index = DS_NAMES.index(ds_name)
@@ -53,22 +56,21 @@ class Visualizer():
     def set_dataset_by_index(self, index):
         self.ds_idx = index % len(DS_NAMES)
         self.ds_name = DS_NAMES[self.ds_idx]
-        self.n_imgs = len(get_filenames(self.ds_name))
+        self.n_imgs = len(self.test_raw_dataset.filenames[self.ds_name])
         self.set_image_by_index(0)
 
     def set_image_by_index(self, index):
-        self.img_idx = index
+        self.img_idx = index % self.n_imgs
 
     def show(self):
         while True:
-            # Get img, gt, pred paths
-            filename, img_path, gt_path = get_test_img_gt_path(self.ds_name, self.img_idx)
-            pred_path = get_test_result_path(self.name, self.ds_name, self.img_idx)
+            # Get filename
+            filename = self.test_raw_dataset.filenames[self.ds_name][self.img_idx]
 
             # Read imgs
-            img = cv2.imread(img_path)
-            gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
-            pred = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)
+            img = self.test_raw_dataset.get_img(self.ds_name, self.img_idx)
+            gt = self.test_raw_dataset.get_gt(self.ds_name, self.img_idx)
+            pred = self.raw_result.get_result(self.ds_name, self.img_idx)
 
             # Get original weight, height
             img_height, img_width = img.shape[0], img.shape[1]
@@ -96,23 +98,23 @@ class Visualizer():
             text1 = f"Dataset {self.ds_idx}: {self.ds_name}"
             text2 = f"Image {self.img_idx}/{self.n_imgs - 1}: {filename}"
             text3 = f"Scale {self.scale}x (origin size: {img_width}x{img_height})"
-            cv2.putText(img=frame, text=text1, org=(10, 40), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-            cv2.putText(img=frame, text=text2, org=(10, 60), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
-            cv2.putText(img=frame, text=text3, org=(10, 80), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+            cv2.putText(img=frame, text=text1, org=(10, 40), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
+            cv2.putText(img=frame, text=text2, org=(10, 60), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
+            cv2.putText(img=frame, text=text3, org=(10, 80), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
 
             # Text: percent of white pixel
             percent = gt[gt > 0].size / gt.size * 100
             text = f"Size: {percent:.1f} %"
-            cv2.putText(img=frame, text=text, org=(10, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+            cv2.putText(img=frame, text=text, org=(10, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
 
             # Text: Dice score
             dice_score = dice(pred / 255, gt / 255) * 100
             text = f"Dice score: {dice_score:.2f} %"
-            cv2.putText(img=frame, text=text, org=(10, 120), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+            cv2.putText(img=frame, text=text, org=(10, 120), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
 
             # Text: Experiment name
             text = f"Experiment name: {self.name}"
-            cv2.putText(img=frame, text=text, org=(10, img_scaled_height - 10), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255))
+            cv2.putText(img=frame, text=text, org=(10, img_scaled_height - 10), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
 
 
             # Show
@@ -150,5 +152,5 @@ class Visualizer():
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    v = Visualizer("spatter_noise")
+    v = Visualizer("e_40.Dec21-15h15.cutmix.sunseg")
     v.show()
