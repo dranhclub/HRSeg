@@ -36,13 +36,13 @@ class TrainDataset(data.Dataset):
         self.size = len(self.images)
 
         ###### Transforms
-        self.tf0 = A.RandomScale(p=0.5, interpolation=0, scale_limit=(-0.5, -0.5))
+        # self.tf0 = A.RandomScale(p=0.5, interpolation=0, scale_limit=(-0.5, -0.5))
         self.tf1 = A.Compose([
             # A.PadIfNeeded(p=1.0, min_height=train_size, min_width=train_size),
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.Rotate(90),
-            A.Spatter(p=0.1),
+            # A.Spatter(p=0.1),
             A.Resize(self.train_size, self.train_size),
         ])
         self.tf2 = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])

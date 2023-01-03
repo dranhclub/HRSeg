@@ -1,4 +1,4 @@
-from utils import clip_gradient, adjust_lr, dice
+from utils import clip_gradient, dice
 from dataloader import get_train_loader, TestDatasets
 from model import PolypSeg
 import torch
@@ -8,8 +8,7 @@ import os
 import argparse
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter()
-
+from torch.optim.lr_scheduler import MultiStepLR
 
 def structure_loss(pred, mask):
     weit = 1 + 5 * \
@@ -26,7 +25,7 @@ def structure_loss(pred, mask):
     return (wbce + wiou).mean()
 
 
-def test(model, test_root, epoch):
+def validate(model, test_root, epoch):
     model.eval()
     dice_record = {}
     test_loader = TestDatasets(test_root, 352)
@@ -85,23 +84,21 @@ def train(train_loader, model, optimizer, epoch):
                 f'{datetime.now()} Epoch [{epoch:03d}/{opt.epoch:03d}], Step [{i:04d}/{n_steps_per_epoch:04d}], loss: {loss_val:0.4f}]')
 
 
-def save(model, save_path, epoch, start_timestamp):
+def save(model, name, save_path, epoch, start_timestamp):
     os.makedirs(save_path, exist_ok=True)
-    file_name = f"{model._get_name()}.e_{epoch}.{start_timestamp}.pth"
+    file_name = f"{name}.e_{epoch}.{start_timestamp}.pth"
     torch.save(model.state_dict(), os.path.join(save_path, file_name))
 
-
-if __name__ == '__main__':
+def parse_arg():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--name', type=str, help='name for a training session', default='unnamed')
+
     parser.add_argument('--epoch', type=int,
-                        default=100, help='epoch number')
+                        default=40, help='epoch number')
 
     parser.add_argument('--lr', type=float,
                         default=1e-4, help='learning rate')
-
-    parser.add_argument('--optimizer', type=str,
-                        default='AdamW', help='choosing optimizer AdamW or SGD')
 
     parser.add_argument('--batchsize', type=int,
                         default=2, help='training batch size')
@@ -112,14 +109,8 @@ if __name__ == '__main__':
     parser.add_argument('--clip', type=float,
                         default=0.5, help='gradient clipping margin')
 
-    parser.add_argument('--decay_rate', type=float,
-                        default=0.1, help='decay rate of learning rate')
-
     parser.add_argument('--n_epochs_per_test', type=float,
                         default=1, help='number of epochs per a test')
-
-    parser.add_argument('--decay_epoch', type=int,
-                        default=50, help='every n epochs decay learning rate')
 
     parser.add_argument('--train_roots',
                     default=['./dataset/TrainDataset/', './dataset/TrainDataset_synthesis/'],
@@ -139,28 +130,31 @@ if __name__ == '__main__':
     
     opt = parser.parse_args()
 
-    # Build model
+    return opt
+
+if __name__ == '__main__':
+    opt = parse_arg()
+
+    # Model
     model = PolypSeg().cuda()
+   
+    # Train dataloader
+    train_loader = get_train_loader(train_roots=opt.train_roots, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
+    n_steps_per_epoch = len(train_loader)
 
     # Optimizer
-    params = model.parameters()
-    if opt.optimizer == 'AdamW':
-        optimizer = torch.optim.AdamW(params, opt.lr, weight_decay=1e-4)
-    else:
-        optimizer = torch.optim.SGD(
-            params, opt.lr, weight_decay=1e-4, momentum=0.9)
-    print(optimizer)
+    optimizer = torch.optim.AdamW(model.parameters(), opt.lr, weight_decay=1e-4)
+    scheduler = MultiStepLR(optimizer, milestones=[15,25,35], gamma=0.25)
 
-    # Dataloader
-    train_loader = get_train_loader(train_roots=opt.train_roots, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
+    # Tensorboard writer
+    writer = SummaryWriter(f'runs/{opt.name}')
 
     # Start training
     print("#" * 20, "Start Training", "#" * 20)
     start_timestamp = datetime.now().strftime("%b%d-%Hh%M")
-    n_steps_per_epoch = len(train_loader)
     for epoch in range(1, opt.epoch + 1):
-        adjust_lr(optimizer, opt.lr, epoch, 0.1, opt.epoch + 1)
         train(train_loader, model, optimizer, epoch)
         if epoch % opt.n_epochs_per_test == 0:
-            test(model, opt.test_root, epoch)
-            save(model, opt.save_path, epoch, start_timestamp)
+            validate(model, opt.test_root, epoch)
+            save(model, opt.name, opt.save_path, epoch, start_timestamp)
+        scheduler.step()

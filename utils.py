@@ -26,13 +26,6 @@ def clip_gradient(optimizer, grad_clip):
             if param.grad is not None:
                 param.grad.data.clamp_(-grad_clip, grad_clip)
 
-
-def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
-    decay = decay_rate ** (epoch // decay_epoch)
-    for param_group in optimizer.param_groups:
-        param_group['lr'] *= decay
-
-
 def CalParams(model, input_tensor):
     """
     Usage:
@@ -58,6 +51,9 @@ def dice(input, target):
     intersection = (input_flat * target_flat)
     dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
     return dice
+
+def polyp_size(gt):
+    return gt[gt > 0].size / gt.size * 100
 
 class RawDataset():
     def __init__(self, root, names) -> None:

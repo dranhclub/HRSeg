@@ -11,7 +11,7 @@ import numpy as np
 class Statistic():
     def __init__(self, name) -> None:
         self.name = name
-        self.test_raw_dataset = get_test_raw_dataset()
+        # self.test_raw_dataset = get_test_raw_dataset()
         self.raw_result = RawResult(name)
 
     @staticmethod
@@ -60,6 +60,35 @@ class Statistic():
                 # Dice score
                 dice_score = dice(gt / 255, pred / 255) * 100
                 result[ds_name]['dice'].append(dice_score)
+
+        print("Process done!")
+        return result
+
+    @staticmethod
+    def calc_test_polyp_size():
+        result = {
+            'CVC-300': [], 
+            'CVC-ClinicDB': [], 
+            'Kvasir': [], 
+            'CVC-ColonDB': [], 
+            'ETIS-LaribPolypDB': [],
+        }
+
+        # For each dataset
+        for ds_name in DS_NAMES:
+            print("Calc size", ds_name)
+
+            test_raw_dataset = get_test_raw_dataset()
+
+            # For each img
+            for img_idx in range(len(test_raw_dataset.filenames[ds_name])):
+
+                # Read GT
+                gt = test_raw_dataset.get_gt(ds_name, img_idx)
+
+                # Percentage of white pixel per total number of pixel
+                percent = gt[gt > 0].size / gt.size * 100
+                result[ds_name].append(percent)
 
         print("Process done!")
         return result
@@ -115,7 +144,8 @@ class Statistic():
 
     def show_scatter(self, name_to_compare):
         result = self.combine(Statistic.dice_vs_size(self.name))
-        visualizer = Visualizer(NAME)
+        visualizer0 = Visualizer(NAME)
+        visualizer1 = Visualizer(NAME)
         visualizer2 = Visualizer(name_to_compare)
 
         def onpick(event):
@@ -124,23 +154,30 @@ class Statistic():
             ds_name = event.artist.axes.get_title()
             print(ds_name, img_idx)
 
-            visualizer.set_dataset_by_name(ds_name)
-            visualizer.set_image_by_index(img_idx)
+            visualizer0.set_dataset_by_name(ds_name)
+            visualizer0.set_image_by_index(img_idx)
+            visualizer1.set_dataset_by_name(ds_name)
+            visualizer1.set_image_by_index(img_idx)
+            visualizer1.show_gt = False
+            visualizer1.show_pred = False
             visualizer2.set_dataset_by_name(ds_name)
             visualizer2.set_image_by_index(img_idx)
 
             # Show
-            frame1 = visualizer.render_frame()
+            frame1 = visualizer1.render_frame()
             if frame1.shape[1] > 600:
-                visualizer.scale = 0.5
+                visualizer0.scale = 0.5
+                visualizer1.scale = 0.5
                 visualizer2.scale = 0.5
             else:
-                visualizer.scale = 1
+                visualizer0.scale = 1
+                visualizer1.scale = 1
                 visualizer2.scale = 1
 
-            frame1 = visualizer.render_frame()
+            frame0 = visualizer0.render_frame()
+            frame1 = visualizer1.render_frame()
             frame2 = visualizer2.render_frame()
-            frame = np.hstack((frame1, frame2))
+            frame = np.hstack((frame0, frame1, frame2))
 
             cv2.imshow(f"{self.name} vs {name_to_compare}", frame)
             
@@ -177,6 +214,13 @@ class Statistic():
             ax.axhline(y=0, color='r', linestyle='-')
             
         plt.show()
+    
+    def print_dice(self):
+        result_1 = self.combine_dice(self.calc_dice(self.name))
+        print("============Mean dice============")
+        for ds_name, value in result_1.items():
+            print(f"{ds_name}: {np.mean(value):.2f}%")
+        print("=================================")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Statistic")
@@ -191,4 +235,5 @@ if __name__ == "__main__":
 
     stat = Statistic(NAME)
     # stat.show_scatter(NAME2)
-    stat.show_dice_compare(NAME2)
+    # stat.show_dice_compare(NAME2)
+    stat.print_dice()

@@ -8,9 +8,9 @@ from utils import TEST_ROOT, RESULT_ROOT
 import shutil
 
 TEST_SIZE = 352
-PTH_PATH = './model_pth/PolypSeg.e_120.Dec20.albumen.pth'
+PTH_PATH = './model_pth/CutMix.SunSeg.e_40.Jan02-02h47.pth'
 
-name = '.'.join(PTH_PATH.split('/')[-1].split('.')[1:-1])
+name = 'CutMix.SunSeg.e_40.Jan02-02h47'
 print("NAME=", name)
 save_dir = os.path.join(RESULT_ROOT, name)
 print("save_dir=", save_dir)
