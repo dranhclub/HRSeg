@@ -94,6 +94,15 @@ class RawDataset():
         gt = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         return gt
 
+    def get_random_img_gt(self):
+        ds_name = np.random.choice(self.names)
+        img_idx = np.random.choice(len(self.filenames[ds_name]))
+        
+        img = self.get_img(ds_name, img_idx)
+        gt = self.get_gt(ds_name, img_idx)
+
+        return img, gt
+
 def get_train_raw_dataset():
     return RawDataset(DATA_ROOT, TRAIN_DS_NAMES)
 
@@ -121,3 +130,15 @@ class RawResult():
         """Return binary image"""
         path = self.get_result_path(ds_name, img_idx)
         return cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+
+def rotate(image, angle, center = None, scale = 1.0):
+    (h, w) = image.shape[:2]
+
+    if center is None:
+        center = (w / 2, h / 2)
+
+    # Perform the rotation
+    M = cv2.getRotationMatrix2D(center, angle, scale)
+    rotated = cv2.warpAffine(image, M, (w, h))
+
+    return rotated
