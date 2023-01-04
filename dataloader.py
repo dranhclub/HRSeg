@@ -36,12 +36,10 @@ class TrainDataset(data.Dataset):
         self.size = len(self.images)
 
         ###### Transforms
-        # self.tf0 = A.RandomScale(p=0.5, interpolation=0, scale_limit=(-0.5, -0.5))
         self.tf1 = A.Compose([
-            # A.PadIfNeeded(p=1.0, min_height=train_size, min_width=train_size),
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
-            A.Rotate(90),
+            A.Rotate(90, border_mode=None),
             # A.Spatter(p=0.1),
             A.Resize(self.train_size, self.train_size),
         ])
@@ -56,13 +54,6 @@ class TrainDataset(data.Dataset):
         gt = cv2.imread(self.gts[index], cv2.IMREAD_GRAYSCALE)
         gt = np.expand_dims(gt, 2)
         gt = (gt / 255).astype("float32")
-        
-        # Apply downscale if polyp size > 2%
-        # gt_np = np.array(gt)
-        # percent = gt_np[gt_np > 0].size / gt_np.size * 100
-        # if percent > 2:
-        #     res_tf0 = self.tf0(image=image, mask=gt)
-        #     image, gt = res_tf0['image'], res_tf0['mask']
 
         # Apply augment
         res_tf1 = self.tf1(image=image, mask=gt)
