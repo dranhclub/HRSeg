@@ -4,14 +4,17 @@ import numpy as np
 from natsort import natsorted
 import albumentations as A
 import albumentations.pytorch.transforms
-import cv2
+import cv2    
 
 class TrainDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, dataset_roots, train_size):
+    def __init__(self, dataset_roots, train_size, batch_size):
         self.train_size = train_size
+        self.batch_size = batch_size
+        self.seed = np.random.randint(0, 1000)
+        self.counter = 0
 
         ##### Get file paths
         self.images = []
@@ -36,16 +39,16 @@ class TrainDataset(data.Dataset):
         self.size = len(self.images)
 
         ###### Transforms
-        self.tf1 = A.Compose([
+        self.tf_augment = A.Compose([
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.Rotate(90, border_mode=None),
-            # A.Spatter(p=0.1),
-            A.Resize(self.train_size, self.train_size),
+            A.Resize(512, 512, cv2.INTER_CUBIC),
+            A.RandomCrop(448, 448),
         ])
-        self.tf2 = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.tf3 = albumentations.pytorch.transforms.ToTensorV2(transpose_mask=True)
-
+        self.tf_norm = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.tf_resize = A.Resize(train_size, train_size, cv2.INTER_CUBIC)
+        self.tf_to_tensor = albumentations.pytorch.transforms.ToTensorV2(transpose_mask=True)
 
     def __getitem__(self, index):
         # Read image and mask
@@ -55,18 +58,40 @@ class TrainDataset(data.Dataset):
         gt = np.expand_dims(gt, 2)
         gt = (gt / 255).astype("float32")
 
-        # Apply augment
-        res_tf1 = self.tf1(image=image, mask=gt)
-        image, gt = res_tf1['image'], res_tf1['mask']
-        
         # Apply normalize by ImageNet's mean and std
-        image = self.tf2(image=image)['image']
+        image = self.tf_norm(image=image)['image']
+
+        # Apply augment
+        res_tf_augment = self.tf_augment(image=image, mask=gt)
+        image, gt = res_tf_augment['image'], res_tf_augment['mask']
+
+        # Random crop inner image to 352
+        inner_image, x0, y0, x1, y1 = self.memorize_crop(image)
+
+        # Resize outer image to 352
+        outer_image = self.tf_resize(image=image)['image']
 
         # Apply to tensor
-        res_tf3  = self.tf3(image=image, mask=gt)
-        image, gt = res_tf3['image'], res_tf3['mask']
+        gt = self.tf_to_tensor(image=gt)['image']
 
-        return image, gt
+        inner_image = self.tf_to_tensor(image=inner_image)['image']
+        outer_image = self.tf_to_tensor(image=outer_image)['image']
+        
+        return {
+            "image": outer_image, 
+            "inner_image": inner_image, 
+            "mask": gt,
+            "slice": np.array([x0, y0, x1, y1])
+        }
+
+    def memorize_crop(self, image):
+        np.random.seed(self.seed + self.counter // self.batch_size)
+        self.counter += 1
+        x0, y0 = np.random.randint(0, 448-352, size=2, dtype=np.uint8)
+        x1 = x0 + self.train_size
+        y1 = y0 + self.train_size
+        inner_image = image[y0:y1, x0:x1]
+        return inner_image, x0, y0, x1, y1
 
     def __len__(self):
         return self.size
@@ -74,7 +99,7 @@ class TrainDataset(data.Dataset):
 
 def get_train_loader(train_roots, batchsize, train_size, shuffle=True, num_workers=4, pin_memory=True):
 
-    dataset = TrainDataset(train_roots, train_size)
+    dataset = TrainDataset(train_roots, train_size, batchsize)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batchsize,
                                   shuffle=shuffle,

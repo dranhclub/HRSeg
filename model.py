@@ -31,7 +31,7 @@ class LocalEmphasis(nn.Module):
         x = self.upsample(x)
         return x
 
-class PolypSeg(nn.Module):
+class Encoder(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -43,6 +43,14 @@ class PolypSeg(nn.Module):
         model_dict.update(state_dict)
         self.backbone.load_state_dict(model_dict)
 
+    def forward(self, x):
+        x1, x2, x3, x4 = self.backbone(x)
+        return x1, x2, x3, x4
+
+class SegmHead(nn.Module):
+    def __init__(self):
+        super().__init__()
+
         self.LE4 = LocalEmphasis(in_planes=512, out_planes=512, up_sample_scale_factor=8)
         self.LE3 = LocalEmphasis(in_planes=320, out_planes=320, up_sample_scale_factor=4)
         self.LE2 = LocalEmphasis(in_planes=128, out_planes=128, up_sample_scale_factor=2)
@@ -53,10 +61,7 @@ class PolypSeg(nn.Module):
         self.linear12 = nn.Conv2d(in_channels=128+64, out_channels=64, kernel_size=1)
         self.linear_out = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1)
 
-
-    def forward(self, x):
-        x1, x2, x3, x4 = self.backbone(x)
-
+    def forward(self, x1, x2, x3, x4):
         x4 = self.LE4(x4)
         x3 = self.LE3(x3)
         x2 = self.LE2(x2)
@@ -74,9 +79,40 @@ class PolypSeg(nn.Module):
 
         return x_out
 
+class AttentionHead(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.up1 = nn.ConvTranspose2d(in_channels=512, out_channels=320, kernel_size=2, stride=2)
+        self.up2 = nn.ConvTranspose2d(in_channels=320, out_channels=128, kernel_size=2, stride=2)
+        self.up3 = nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=2, stride=2)
+        self.up4 = nn.ConvTranspose2d(in_channels=64, out_channels=1, kernel_size=4, stride=4)
+        self.relu = nn.ReLU(inplace=True)
+        self.sigmod = nn.Sigmoid()
+
+    def forward(self, x1, x2, x3, x4):
+        x = self.relu(self.up1(x4))
+        x = self.relu(self.up2(x))
+        x = self.relu(self.up3(x))
+        x = self.relu(self.up4(x))
+        x = self.sigmod(x)
+
+        return x
+
+class PolypSeg(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = Encoder()
+        self.segm_head = SegmHead()
+
+    def forward(self, x):
+        return self.segm_head(*self.encoder(x))
+
 if __name__ == "__main__":
     model = PolypSeg()
 
     from thop import profile, clever_format
-    inputs = torch.rand(1, 3, 224, 224)
+    inputs = torch.rand(1, 3, 288, 288)
     print(clever_format(profile(model, inputs=(inputs, ))))
+    
+    outputs = model(inputs)
+    print(outputs.shape)

@@ -1,7 +1,8 @@
 from utils import clip_gradient, dice
 from dataloader import get_train_loader, TestDatasets
-from model import PolypSeg
+from model import PolypSeg, AttentionHead
 import torch
+from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 import os
@@ -54,18 +55,40 @@ def validate(model, test_root, epoch):
     writer.add_scalars('Test dice', dice_record, global_step=epoch * n_steps_per_epoch)
 
 
-def train(train_loader, model, optimizer, epoch):
+def train(train_loader, model: PolypSeg, optimizer, epoch):
     model.train()
-    for i, pack in enumerate(train_loader, start=1):
+    attention_head = AttentionHead().cuda()
+    attention_head.train()
 
-        # data prepare
-        images, gts = pack
-        images = Variable(images).cuda()
-        gts = Variable(gts).cuda()
+    for i, batch in enumerate(train_loader, start=1):
+        images = batch['image'].cuda()
+        gts = batch['mask'].cuda()
+        inner_images = batch['inner_image'].cuda()
+        slices = batch['slice'][0]
 
-        # forward
-        out = model(images)
-        loss = structure_loss(out, gts)
+        ## forward
+        # inner forward
+        inner_output = model(inner_images)
+
+        # outer forward
+        x1, x2, x3, x4 = model.encoder(images)
+        outer_output = model.segm_head(x1, x2, x3, x4)
+        weight_map = attention_head(x1, x2, x3, x4)
+
+        # upscale outer output
+        outer_output = F.upsample(outer_output, size=(448, 448), mode='bilinear', align_corners=False)
+
+        inner_output_padded = torch.zeros_like(outer_output)
+        weight_map_padded = torch.zeros_like(outer_output)
+
+        x0, y0, x1, y1 = slices.tolist()
+        inner_output_padded[:, :, y0:y1, x0:x1] = inner_output
+        inner_output_padded[:, :, y0:y1, x0:x1] = weight_map
+
+        # fuse
+        output = inner_output_padded * weight_map_padded + outer_output * (1 - weight_map_padded)
+
+        loss = structure_loss(output, gts)
 
         # backward
         optimizer.zero_grad()
@@ -113,7 +136,7 @@ def parse_arg():
                         default=1, help='number of epochs per a test')
 
     parser.add_argument('--train_roots',
-                    default=['./dataset/TrainDataset/', './dataset/TrainDataset_synthesis/'],
+                    default=['./dataset/TrainDataset/'],
                     nargs='+',
                     help='path to train datasets')
 
