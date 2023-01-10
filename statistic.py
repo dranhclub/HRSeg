@@ -142,7 +142,7 @@ class Statistic():
             new_result["all"].extend(value)
         return new_result
 
-    def show_scatter(self, name_to_compare):
+    def show_scatter_dice_by_size(self, name_to_compare):
         result = self.combine(Statistic.dice_vs_size(self.name))
         visualizer0 = Visualizer(NAME)
         visualizer1 = Visualizer(NAME)
@@ -193,7 +193,7 @@ class Statistic():
         fig.canvas.mpl_connect('pick_event', onpick)
         plt.show()
 
-    def show_dice_compare(self, name_to_compare):
+    def show_curve_delta_dice(self, name_to_compare):
         result_1 = self.combine_dice(self.calc_dice(self.name))
         result_2 = self.combine_dice(self.calc_dice(name_to_compare))
 
@@ -214,6 +214,51 @@ class Statistic():
             ax.axhline(y=0, color='r', linestyle='-')
             
         plt.show()
+
+    def mean_dice_by_range_size(self, name):
+        dbs_result = self.combine(self.dice_vs_size(name))
+        dbrs_result = {
+            'CVC-300': {}, 
+            'CVC-ClinicDB': {}, 
+            'Kvasir': {}, 
+            'CVC-ColonDB': {}, 
+            'ETIS-LaribPolypDB': {},
+            'all': {}
+        }
+        size_milestones = np.arange(0, 100, 5)
+        for i in range(len(size_milestones) - 1):
+            s1 = size_milestones[i]
+            s2 = size_milestones[i+1]
+            range_label = f"{s1}-{s2}"
+            for ds_name, value in dbs_result.items():
+                dices = []
+                for j, s in enumerate(value['size']):
+                    if s1 < s <= s2:
+                        dices.append(value['dice'][j])
+                dbrs_result[ds_name][range_label] = np.mean(dices)
+        return dbrs_result
+
+    def show_scattter_dice_by_range_size(self, name_to_compare):
+        dbrs_result_1 = self.mean_dice_by_range_size(self.name)
+        dbrs_result_2 = self.mean_dice_by_range_size(name_to_compare)
+
+        fig = plt.figure(figsize=(18, 10))
+        fig.suptitle(f"Mean dice by range size [{self.name} (blue) and {name_to_compare} (red)]", fontsize="x-large")
+        for i, (ds_name, value1) in enumerate(dbrs_result_1.items()):
+            value2 = dbrs_result_2[ds_name]
+            
+            ax = fig.add_subplot(2,3,i+1)
+                        
+            for label, m in value1.items():
+                ax.scatter(label, m, color='b')
+            
+            for label, m in value2.items():
+                ax.scatter(label, m, color='r')
+
+            ax.set_title(ds_name)
+            ax.set_ylabel("Mean dice")
+            ax.xaxis.set_tick_params(rotation=45)
+        plt.show()
     
     def print_dice(self):
         result_1 = self.combine_dice(self.calc_dice(self.name))
@@ -224,8 +269,8 @@ class Statistic():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Statistic")
-    parser.add_argument("--name", "-n", type=str, default="PolypPVT")
-    parser.add_argument("--compare_to", "-c", type=str, default="e_40.Dec21-15h15.cutmix.sunseg")
+    parser.add_argument("--name", "-n", type=str, default="MixBlurColorTransfer.e_40.Jan04-08h15")
+    parser.add_argument("--compare_to", "-c", type=str, default="SunSeg.e_40.Dec31-10h52.pth")
     opt = parser.parse_args()
 
     NAME = opt.name
@@ -234,6 +279,7 @@ if __name__ == "__main__":
     print("Compare to", NAME2)
 
     stat = Statistic(NAME)
-    # stat.show_scatter(NAME2)
-    # stat.show_dice_compare(NAME2)
-    stat.print_dice()
+    # stat.print_dice()
+    stat.show_scatter_dice_by_size(NAME2)
+    # stat.show_curve_delta_dice(NAME2)
+    # stat.show_scattter_dice_by_range_size(NAME2)

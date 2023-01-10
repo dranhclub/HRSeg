@@ -8,9 +8,9 @@ from utils import TEST_ROOT, RESULT_ROOT
 import shutil
 
 TEST_SIZE = 352
-PTH_PATH = './model_pth/MixBlur/MixBlur.e_40.Jan03-15h39.pth'
+PTH_PATH = './model_pth/MixBlurColorTransfer/MixBlurColorTransfer.e_40.Jan04-08h15.pth'
 
-name = 'MixBlur.e_40.Jan03-15h39.pth'
+name = 'MixBlurColorTransfer.e_40.Jan04-08h15'
 print("NAME=", name)
 save_dir = os.path.join(RESULT_ROOT, name)
 print("save_dir=", save_dir)
