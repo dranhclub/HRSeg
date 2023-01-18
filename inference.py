@@ -8,9 +8,9 @@ from utils import TEST_ROOT, RESULT_ROOT
 import shutil
 
 TEST_SIZE = 352
-PTH_PATH = './model_pth/MixBlurColorTransfer/MixBlurColorTransfer.e_40.Jan04-08h15.pth'
+PTH_PATH = './model_pth/HRDA3.e_40.Jan11-17h02.pth'
 
-name = 'MixBlurColorTransfer.e_40.Jan04-08h15'
+name = 'HRDA3.e_40.Jan11-17h02'
 print("NAME=", name)
 save_dir = os.path.join(RESULT_ROOT, name)
 print("save_dir=", save_dir)
@@ -20,6 +20,7 @@ os.makedirs(save_dir, exist_ok=True)
 
 # Prepare model
 model = PolypSeg()
+state_dict = torch.load(PTH_PATH)
 model.load_state_dict(torch.load(PTH_PATH))
 model.cuda()
 model.eval()

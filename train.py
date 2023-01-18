@@ -1,13 +1,14 @@
 from utils import clip_gradient, dice
 from dataloader import get_train_loader, TestDatasets
-from model import PolypSeg, AttentionHead
+from model import PolypSeg
+import cv2
 import torch
-from torch import nn
-from torch.autograd import Variable
 import torch.nn.functional as F
 import os
+import itertools
 import argparse
 from datetime import datetime
+import albumentations as A
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import MultiStepLR
 
@@ -25,21 +26,64 @@ def structure_loss(pred, mask):
 
     return (wbce + wiou).mean()
 
+def infer(model: PolypSeg, image):
+    """
+    Overlapping Sliding Window inference
+    Params:
+        image: transformed_image
+    """
+
+    image = image.unsqueeze(0).cuda()
+
+    # Infer outer
+    outer = F.interpolate(image, size=(288, 288), mode='bilinear', align_corners=False)
+
+    x1, x2, x3, x4 = model.encoder(outer)
+    outer_output = model.segm_head(x1, x2, x3, x4)
+    weight_map = model.att_head(x1, x2, x3, x4)
+    outer_output = F.upsample(outer_output, size=(576, 576), mode='bilinear', align_corners=False)
+    weight_map = F.upsample(weight_map, size=(576, 576), mode='bilinear', align_corners=False)
+
+    # Overlapping window infer inner
+    inner_images = []
+    for x_min, y_min in itertools.product([0, 144, 288], [0, 144, 288]):
+        x_max = x_min + 288
+        y_max = y_min + 288
+        inner_image = image[:,:,y_min:y_max, x_min:x_max]
+        inner_images.append(inner_image[0])
+    inner_images = torch.stack(inner_images)
+    x1, x2, x3, x4 = model.encoder(inner_images)
+    inner_outputs = model.segm_head(x1, x2, x3, x4)
+
+    ## Fuse
+    # Sum
+    combined_inners = torch.zeros(1, 576, 576).cuda()
+    avg_weight = torch.zeros(1, 576, 576).cuda()
+    for i, (x_min, y_min) in enumerate(list(itertools.product([0, 144, 288], [0, 144, 288]))):
+        x_max = x_min + 288
+        y_max = y_min + 288
+        combined_inners[:, y_min:y_max, x_min:x_max] += inner_outputs[i]
+        avg_weight[:, y_min:y_max, x_min:x_max] += 1
+    # Average
+    combined_inners = combined_inners / avg_weight
+    # Weighted sum
+    fused_output = combined_inners * weight_map + outer_output * (1-weight_map)
+
+    return fused_output
 
 def validate(model, test_root, epoch):
     model.eval()
     dice_record = {}
-    test_loader = TestDatasets(test_root, 352)
+    test_loader = TestDatasets(test_root, 576)
     for ds_name in test_loader.DS_NAMES:
         sum_dice_score = 0.0
         n_imgs = test_loader.datasets[ds_name]["n_imgs"]
         for i in range(n_imgs):
             # Get img, mask
             _, image, gt = test_loader.get_item(ds_name, i)
-            image = image.unsqueeze(0).cuda()
 
             # Infer
-            res = model(image)
+            res = infer(model, image)
             res = F.upsample(res, size=gt.shape, mode='bilinear', align_corners=False)
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
@@ -57,8 +101,6 @@ def validate(model, test_root, epoch):
 
 def train(train_loader, model: PolypSeg, optimizer, epoch):
     model.train()
-    attention_head = AttentionHead().cuda()
-    attention_head.train()
 
     for i, batch in enumerate(train_loader, start=1):
         images = batch['image'].cuda()
@@ -68,25 +110,29 @@ def train(train_loader, model: PolypSeg, optimizer, epoch):
 
         ## forward
         # inner forward
-        inner_output = model(inner_images)
+        x1, x2, x3, x4 = model.encoder(inner_images)
+        inner_output = model.segm_head(x1, x2, x3, x4)
 
         # outer forward
         x1, x2, x3, x4 = model.encoder(images)
         outer_output = model.segm_head(x1, x2, x3, x4)
-        weight_map = attention_head(x1, x2, x3, x4)
+        weight_map = model.att_head(x1, x2, x3, x4)
 
         # upscale outer output
-        outer_output = F.upsample(outer_output, size=(448, 448), mode='bilinear', align_corners=False)
+        outer_output = F.upsample(outer_output, size=(576, 576), mode='bilinear', align_corners=False)
+
+        # upscale weight map
+        weight_map = F.upsample(weight_map, size=(576, 576), mode='bilinear', align_corners=False)
 
         inner_output_padded = torch.zeros_like(outer_output)
-        weight_map_padded = torch.zeros_like(outer_output)
+        weight_map_cropped = torch.zeros_like(weight_map)
 
         x0, y0, x1, y1 = slices.tolist()
         inner_output_padded[:, :, y0:y1, x0:x1] = inner_output
-        inner_output_padded[:, :, y0:y1, x0:x1] = weight_map
+        weight_map_cropped[:, :, y0:y1, x0:x1] = weight_map[:, :, y0:y1, x0:x1]
 
         # fuse
-        output = inner_output_padded * weight_map_padded + outer_output * (1 - weight_map_padded)
+        output = inner_output_padded * weight_map_cropped + outer_output * (1 - weight_map_cropped)
 
         loss = structure_loss(output, gts)
 
@@ -127,7 +173,7 @@ def parse_arg():
                         default=2, help='training batch size')
 
     parser.add_argument('--train_size', type=int,
-                        default=352, help='training dataset size')
+                        default=288, help='training dataset size')
 
     parser.add_argument('--clip', type=float,
                         default=0.5, help='gradient clipping margin')
@@ -176,7 +222,7 @@ if __name__ == '__main__':
     print("#" * 20, "Start Training", "#" * 20)
     start_timestamp = datetime.now().strftime("%b%d-%Hh%M")
     for epoch in range(1, opt.epoch + 1):
-        train(train_loader, model, optimizer, epoch)
+        # train(train_loader, model, optimizer, epoch)
         if epoch % opt.n_epochs_per_test == 0:
             validate(model, opt.test_root, epoch)
             save(model, opt.name, opt.save_path, epoch, start_timestamp)

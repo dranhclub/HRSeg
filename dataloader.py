@@ -43,8 +43,8 @@ class TrainDataset(data.Dataset):
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.Rotate(90, border_mode=None),
-            A.Resize(512, 512, cv2.INTER_CUBIC),
-            A.RandomCrop(448, 448),
+            A.PadIfNeeded(min_height=576, min_width=576, border_mode=None),
+            A.RandomCrop(576, 576),
         ])
         self.tf_norm = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.tf_resize = A.Resize(train_size, train_size, cv2.INTER_CUBIC)
@@ -65,10 +65,10 @@ class TrainDataset(data.Dataset):
         res_tf_augment = self.tf_augment(image=image, mask=gt)
         image, gt = res_tf_augment['image'], res_tf_augment['mask']
 
-        # Random crop inner image to 352
+        # Random crop inner image to 288
         inner_image, x0, y0, x1, y1 = self.memorize_crop(image)
 
-        # Resize outer image to 352
+        # Resize outer image to 288
         outer_image = self.tf_resize(image=image)['image']
 
         # Apply to tensor

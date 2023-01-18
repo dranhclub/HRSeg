@@ -103,9 +103,7 @@ class PolypSeg(nn.Module):
         super().__init__()
         self.encoder = Encoder()
         self.segm_head = SegmHead()
-
-    def forward(self, x):
-        return self.segm_head(*self.encoder(x))
+        self.att_head = AttentionHead()
 
 if __name__ == "__main__":
     model = PolypSeg()

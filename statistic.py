@@ -7,6 +7,17 @@ from visualize import Visualizer
 from utils import DS_NAMES
 import argparse
 import numpy as np
+import pickle
+import os
+
+class Record():
+    def __init__(self, name, ds_name, img_idx, dice, size):
+        self.name = name
+        self.ds_name = ds_name
+        self.img_idx = img_idx
+        self.dice = dice
+        self.size = size
+
 
 class Statistic():
     def __init__(self, name) -> None:
@@ -63,6 +74,51 @@ class Statistic():
 
         print("Process done!")
         return result
+
+    @staticmethod
+    def _calc(name):
+        print("Calc ", name)
+
+        CACHE_DIR = './cache'
+        cache_file = os.path.join(CACHE_DIR, name)
+
+        if os.path.exists(cache_file):
+            with open(cache_file, mode='rb') as f:
+                records = pickle.load(f)
+            print("Load from cache")
+        else:
+            records = []
+
+            # For each dataset
+            for ds_name in DS_NAMES:
+                print("Processing", ds_name)
+
+                test_raw_dataset = get_test_raw_dataset()
+                raw_result = RawResult(name)
+
+                # For each img
+                for img_idx in range(len(test_raw_dataset.filenames[ds_name])):
+
+                    # Read GT, pred
+                    gt = test_raw_dataset.get_gt(ds_name, img_idx)
+                    pred = raw_result.get_result(ds_name, img_idx)
+
+                    # Percentage of white pixel per total number of pixel
+                    percent = gt[gt > 0].size / gt.size * 100
+                    
+                    # Dice score
+                    dice_score = dice(gt / 255, pred / 255) * 100
+
+                    # Record
+                    records.append(Record(name, ds_name, img_idx, dice_score, percent))
+
+            print("Process done!")
+
+            # Save to cache
+            with open(cache_file, mode='wb') as f:
+                pickle.dump(records, f)
+
+        return records
 
     @staticmethod
     def calc_test_polyp_size():
@@ -194,25 +250,83 @@ class Statistic():
         plt.show()
 
     def show_curve_delta_dice(self, name_to_compare):
-        result_1 = self.combine_dice(self.calc_dice(self.name))
-        result_2 = self.combine_dice(self.calc_dice(name_to_compare))
+        records_1 = Statistic._calc(NAME)
+        records_2 = Statistic._calc(name_to_compare)
+
+        visualizer0 = Visualizer(NAME)
+        visualizer1 = Visualizer(NAME)
+        visualizer2 = Visualizer(name_to_compare)
+
+        delta_dices = {}
+
+        def onpick(event):
+            hit_list = event.ind
+            hit_idx = hit_list[0]
+            ds_name = event.artist.axes.get_title()
+            r1 = delta_dices[ds_name][hit_idx]["r1"]
+            img_idx = r1.img_idx
+            print(ds_name, img_idx)
+
+            visualizer0.set_dataset_by_name(ds_name)
+            visualizer0.set_image_by_index(img_idx)
+            visualizer1.set_dataset_by_name(ds_name)
+            visualizer1.set_image_by_index(img_idx)
+            visualizer1.show_gt = False
+            visualizer1.show_pred = False
+            visualizer2.set_dataset_by_name(ds_name)
+            visualizer2.set_image_by_index(img_idx)
+
+            # Show
+            frame1 = visualizer1.render_frame()
+            if frame1.shape[1] > 600:
+                visualizer0.scale = 0.5
+                visualizer1.scale = 0.5
+                visualizer2.scale = 0.5
+            else:
+                visualizer0.scale = 1
+                visualizer1.scale = 1
+                visualizer2.scale = 1
+
+            frame0 = visualizer0.render_frame()
+            frame1 = visualizer1.render_frame()
+            frame2 = visualizer2.render_frame()
+            frame = np.hstack((frame0, frame1, frame2))
+
+            cv2.imshow(f"{self.name} vs {name_to_compare}", frame)
 
         fig = plt.figure(figsize=(18, 10))
         suptitle = fig.suptitle(f"Delta dice [{name_to_compare} - {self.name}]", fontsize="x-large")
-        for i, (ds_name, value) in enumerate(result_1.items()):
-            dice1 = np.array(result_1[ds_name])
-            dice2 = np.array(result_2[ds_name])
+        
 
-            delta_dice = dice2 - dice1
-            sorted_delta = sorted(delta_dice)
+        for i, ds_name in enumerate(DS_NAMES):
+            list_record_by_ds_1 = list(filter(lambda r: r.ds_name == ds_name, records_1))
+            list_record_by_ds_2 = list(filter(lambda r: r.ds_name == ds_name, records_2))
 
+            delta_dice = []
+            for r1, r2 in zip(list_record_by_ds_1, list_record_by_ds_2):
+                delta_dice.append({
+                    "delta_dice": r2.dice - r1.dice,
+                    "size": r1.size,
+                    "r1": r1,
+                    "r2": r2
+                })
+            
+            # sort by size
+            delta_dice.sort(key=lambda x: x['size'])
+            # Save
+            delta_dices[ds_name] = delta_dice
+            
+        for i, ds_name in enumerate(DS_NAMES):
+            delta_dice = delta_dices[ds_name]
+            N = len(delta_dice)
             ax = fig.add_subplot(2,3,i+1)
-            ax.plot(sorted_delta, marker="o")
+            ax.scatter(np.arange(0, N, 1), list(map(lambda x: x['delta_dice'], delta_dice)), picker=True)
             ax.set_title(ds_name)
             # ax.set_xlabel("Image")
             ax.set_ylabel("Delta dice")
             ax.axhline(y=0, color='r', linestyle='-')
-            
+
+        fig.canvas.mpl_connect('pick_event', onpick) 
         plt.show()
 
     def mean_dice_by_range_size(self, name):
@@ -269,8 +383,8 @@ class Statistic():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Statistic")
-    parser.add_argument("--name", "-n", type=str, default="MixBlurColorTransfer.e_40.Jan04-08h15")
-    parser.add_argument("--compare_to", "-c", type=str, default="SunSeg.e_40.Dec31-10h52.pth")
+    parser.add_argument("--name", "-n", type=str, default="HRDA4")
+    parser.add_argument("--compare_to", "-c", type=str, default="e_120.Dec20.albumen")
     opt = parser.parse_args()
 
     NAME = opt.name
@@ -279,7 +393,7 @@ if __name__ == "__main__":
     print("Compare to", NAME2)
 
     stat = Statistic(NAME)
-    # stat.print_dice()
-    stat.show_scatter_dice_by_size(NAME2)
-    # stat.show_curve_delta_dice(NAME2)
+    stat.print_dice()
+    # stat.show_scatter_dice_by_size(NAME2)
+    stat.show_curve_delta_dice(NAME2)
     # stat.show_scattter_dice_by_range_size(NAME2)
