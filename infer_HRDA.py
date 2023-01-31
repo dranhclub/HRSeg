@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import os
-from model import PolypSeg
+from model import HRSeg
 import cv2
 from dataloader import TestDatasets
 from utils import TEST_ROOT, RESULT_ROOT
@@ -20,7 +20,7 @@ shutil.rmtree(save_dir, ignore_errors=True)
 os.makedirs(save_dir, exist_ok=True)
 
 # Prepare model
-model = PolypSeg().cuda()
+model = HRSeg().cuda()
 model.load_state_dict(torch.load(PTH_PATH, map_location='cuda'))
 model.eval()
 

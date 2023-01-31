@@ -1,7 +1,6 @@
 from utils import clip_gradient, dice
 from dataloader import get_train_loader, TestDatasets
-from model import PolypSeg
-import cv2
+from model import HRSeg
 import torch
 import torch.nn.functional as F
 import os
@@ -26,7 +25,7 @@ def structure_loss(pred, mask):
 
     return (wbce + wiou).mean()
 
-def infer(model: PolypSeg, image):
+def infer(model: HRSeg, image):
     """
     Overlapping Sliding Window inference
     Params:
@@ -36,13 +35,13 @@ def infer(model: PolypSeg, image):
     image = image.unsqueeze(0).cuda()
 
     # Infer outer
-    outer = F.interpolate(image, size=(288, 288), mode='bilinear', align_corners=False)
+    outer = F.interpolate(image, size=(288, 288), mode='bilinear')
 
     x1, x2, x3, x4 = model.encoder(outer)
-    outer_output = model.segm_head(x1, x2, x3, x4)
+    outer_output = model.segm_head([x1, x2, x3, x4])
     weight_map = model.att_head(x1, x2, x3, x4)
-    outer_output = F.upsample(outer_output, size=(576, 576), mode='bilinear', align_corners=False)
-    weight_map = F.upsample(weight_map, size=(576, 576), mode='bilinear', align_corners=False)
+    outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
+    weight_map = F.interpolate(weight_map, size=(576, 576), mode='bilinear')
 
     # Overlapping window infer inner
     inner_images = []
@@ -53,7 +52,7 @@ def infer(model: PolypSeg, image):
         inner_images.append(inner_image[0])
     inner_images = torch.stack(inner_images)
     x1, x2, x3, x4 = model.encoder(inner_images)
-    inner_outputs = model.segm_head(x1, x2, x3, x4)
+    inner_outputs = model.segm_head([x1, x2, x3, x4])
 
     ## Fuse
     # Sum
@@ -84,7 +83,7 @@ def validate(model, test_root, epoch):
 
             # Infer
             res = infer(model, image)
-            res = F.upsample(res, size=gt.shape, mode='bilinear', align_corners=False)
+            res = F.interpolate(res, size=gt.shape, mode='bilinear')
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
             
@@ -99,7 +98,7 @@ def validate(model, test_root, epoch):
     writer.add_scalars('Test dice', dice_record, global_step=epoch * n_steps_per_epoch)
 
 
-def train(train_loader, model: PolypSeg, optimizer, epoch):
+def train(train_loader, model: HRSeg, optimizer, epoch):
     model.train()
 
     for i, batch in enumerate(train_loader, start=1):
@@ -111,18 +110,18 @@ def train(train_loader, model: PolypSeg, optimizer, epoch):
         ## forward
         # inner forward
         x1, x2, x3, x4 = model.encoder(inner_images)
-        inner_output = model.segm_head(x1, x2, x3, x4)
+        inner_output = model.segm_head([x1, x2, x3, x4])
 
         # outer forward
         x1, x2, x3, x4 = model.encoder(images)
-        outer_output = model.segm_head(x1, x2, x3, x4)
+        outer_output = model.segm_head([x1, x2, x3, x4])
         weight_map = model.att_head(x1, x2, x3, x4)
 
         # upscale outer output
-        outer_output = F.upsample(outer_output, size=(576, 576), mode='bilinear', align_corners=False)
+        outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
 
         # upscale weight map
-        weight_map = F.upsample(weight_map, size=(576, 576), mode='bilinear', align_corners=False)
+        weight_map = F.interpolate(weight_map, size=(576, 576), mode='bilinear')
 
         inner_output_padded = torch.zeros_like(outer_output)
         weight_map_cropped = torch.zeros_like(weight_map)
@@ -205,7 +204,7 @@ if __name__ == '__main__':
     opt = parse_arg()
 
     # Model
-    model = PolypSeg().cuda()
+    model = HRSeg().cuda()
    
     # Train dataloader
     train_loader = get_train_loader(train_roots=opt.train_roots, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
@@ -222,7 +221,7 @@ if __name__ == '__main__':
     print("#" * 20, "Start Training", "#" * 20)
     start_timestamp = datetime.now().strftime("%b%d-%Hh%M")
     for epoch in range(1, opt.epoch + 1):
-        # train(train_loader, model, optimizer, epoch)
+        train(train_loader, model, optimizer, epoch)
         if epoch % opt.n_epochs_per_test == 0:
             validate(model, opt.test_root, epoch)
             save(model, opt.name, opt.save_path, epoch, start_timestamp)

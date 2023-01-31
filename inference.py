@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import os
-from model import PolypSeg
+from model import HRSeg
 import cv2
 from dataloader import TestDatasets
 from utils import TEST_ROOT, RESULT_ROOT

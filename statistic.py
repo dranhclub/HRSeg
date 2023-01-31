@@ -394,6 +394,6 @@ if __name__ == "__main__":
 
     stat = Statistic(NAME)
     stat.print_dice()
-    # stat.show_scatter_dice_by_size(NAME2)
-    stat.show_curve_delta_dice(NAME2)
+    stat.show_scatter_dice_by_size(NAME2)
+    # stat.show_curve_delta_dice(NAME2)
     # stat.show_scattter_dice_by_range_size(NAME2)
