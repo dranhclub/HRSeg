@@ -37,9 +37,10 @@ def infer(model: HRSeg, image):
     # Infer outer
     outer = F.interpolate(image, size=(288, 288), mode='bilinear')
 
-    x1, x2, x3, x4 = model.encoder(outer)
-    outer_output = model.segm_head([x1, x2, x3, x4])
-    weight_map = model.att_head(x1, x2, x3, x4)
+    with torch.no_grad():
+        x1, x2, x3, x4 = model.encoder(outer)
+        outer_output = model.segm_head([x1, x2, x3, x4])
+        weight_map = model.att_head(x1, x2, x3, x4)
     outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
     weight_map = F.interpolate(weight_map, size=(576, 576), mode='bilinear')
 
@@ -51,8 +52,9 @@ def infer(model: HRSeg, image):
         inner_image = image[:,:,y_min:y_max, x_min:x_max]
         inner_images.append(inner_image[0])
     inner_images = torch.stack(inner_images)
-    x1, x2, x3, x4 = model.encoder(inner_images)
-    inner_outputs = model.segm_head([x1, x2, x3, x4])
+    with torch.no_grad():
+        x1, x2, x3, x4 = model.encoder(inner_images)
+        inner_outputs = model.segm_head([x1, x2, x3, x4])
 
     ## Fuse
     # Sum

@@ -161,5 +161,5 @@ class Visualizer():
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    v = Visualizer("e_40.Dec21-15h15.cutmix.sunseg")
+    v = Visualizer(name="HRSeg")
     v.show()

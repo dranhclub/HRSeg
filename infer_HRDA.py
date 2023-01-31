@@ -9,9 +9,9 @@ import shutil
 from train import infer
 
 TEST_SIZE = 576
-PTH_PATH = './model_pth/HRDA4.e_40.Jan18-09h23.pth'
+PTH_PATH = './model_pth/HRSeg.e_40.Jan31-04h00.pth'
 
-name = 'HRDA4'
+name = 'HRSeg'
 print("NAME=", name)
 save_dir = os.path.join(RESULT_ROOT, name)
 print("save_dir=", save_dir)

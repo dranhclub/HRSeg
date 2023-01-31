@@ -383,7 +383,7 @@ class Statistic():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Statistic")
-    parser.add_argument("--name", "-n", type=str, default="HRDA4")
+    parser.add_argument("--name", "-n", type=str, default="HRSeg")
     parser.add_argument("--compare_to", "-c", type=str, default="e_120.Dec20.albumen")
     opt = parser.parse_args()
 
