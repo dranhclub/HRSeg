@@ -466,7 +466,10 @@ class HRSeg(nn.Module):
         super().__init__()
         self.encoder = mit_b2()
         self.segm_head = Decoder(dims=[64, 128, 320, 512], dim=256, class_num=1)
-        self.att_head = AttentionHead()
+        self.att_head = nn.Sequential(
+            Decoder(dims=[64, 128, 320, 512], dim=256, class_num=1),
+            nn.Sigmoid()
+        )
         self._init_weights()
 
     def _init_weights(self):

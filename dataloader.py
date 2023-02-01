@@ -154,3 +154,21 @@ class TestDatasets():
         transformed_image = self.img_transform(image=image)["image"]
         
         return image, transformed_image, gt
+
+    def get_item_by_name(self, ds_name, img_name):
+        dataset = self.datasets[ds_name]
+        root = dataset["root"]
+        img_dir = os.path.join(root, "images")
+        gt_dir = os.path.join(root, "masks")
+
+        img_path = os.path.join(img_dir, img_name)
+        gt_path = os.path.join(gt_dir, img_name)
+
+        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+        gt = (gt / 255).astype("float32")
+
+        transformed_image = self.img_transform(image=image)["image"]
+        
+        return image, transformed_image, gt

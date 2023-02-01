@@ -40,7 +40,7 @@ def infer(model: HRSeg, image):
     with torch.no_grad():
         x1, x2, x3, x4 = model.encoder(outer)
         outer_output = model.segm_head([x1, x2, x3, x4])
-        weight_map = model.att_head(x1, x2, x3, x4)
+        weight_map = model.att_head([x1, x2, x3, x4])
     outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
     weight_map = F.interpolate(weight_map, size=(576, 576), mode='bilinear')
 
@@ -117,7 +117,7 @@ def train(train_loader, model: HRSeg, optimizer, epoch):
         # outer forward
         x1, x2, x3, x4 = model.encoder(images)
         outer_output = model.segm_head([x1, x2, x3, x4])
-        weight_map = model.att_head(x1, x2, x3, x4)
+        weight_map = model.att_head([x1, x2, x3, x4])
 
         # upscale outer output
         outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
@@ -198,6 +198,10 @@ def parse_arg():
     parser.add_argument('--num_workers', type=int,
                         default=1)
     
+    parser.add_argument('--milestones', type=str, 
+                        default='[15, 25, 35]',
+                        help='Multistep learning rate milestones (gamma=0.25)')
+
     opt = parser.parse_args()
 
     return opt
@@ -214,7 +218,7 @@ if __name__ == '__main__':
 
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), opt.lr, weight_decay=1e-4)
-    scheduler = MultiStepLR(optimizer, milestones=[15,25,35], gamma=0.25)
+    scheduler = MultiStepLR(optimizer, milestones=eval(opt.milestones), gamma=0.25)
 
     # Tensorboard writer
     writer = SummaryWriter(f'runs/{opt.name}')

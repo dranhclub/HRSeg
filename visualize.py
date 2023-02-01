@@ -161,5 +161,5 @@ class Visualizer():
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    v = Visualizer(name="HRSeg2")
+    v = Visualizer(name="HRSeg3")
     v.show()
