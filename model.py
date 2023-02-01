@@ -427,47 +427,38 @@ class Decoder(Module):
         return x
 
 
-class HRSeg(nn.Module):
-    def __init__(self, class_num=2, **kwargs):
+class SelfAttention(nn.Module):
+    def __init__(self, n_channels) -> None:
         super().__init__()
-        self.class_num = class_num
-        self.backbone = mit_b2()
-        self.decode_head = Decoder(dims=[64, 128, 320, 512], dim=256, class_num=class_num)
-        self._init_weights()  # load pretrain
+        self.query, self.key, self.value = [
+            nn.Conv1d(in_channels=n_channels, out_channels=c, kernel_size=1, bias=False) \
+            for c in (n_channels // 8, n_channels // 8, n_channels)
+        ]
+        self.gamma = nn.Parameter(torch.tensor([0.]))
 
     def forward(self, x):
-        features = self.backbone(x)
-
-        features = self.decode_head(features)
-        up = UpsamplingBilinear2d(scale_factor=4)
-        features = up(features)
-        return features
-
-    def _init_weights(self):
-        pretrained_dict = torch.load('pretrained_pth/mit_b2.pth')
-        model_dict = self.backbone.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        model_dict.update(pretrained_dict)
-        self.backbone.load_state_dict(model_dict)
-        print("successfully loaded!!!!")
+        size = x.size()
+        x = x.view(*size[:2],-1)
+        f,g,h = self.query(x),self.key(x),self.value(x)
+        beta = F.softmax(torch.bmm(f.transpose(1,2), g), dim=1)
+        o = self.gamma * torch.bmm(h, beta) + x
+        return o.view(*size).contiguous()
 
 class AttentionHead(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.up1 = nn.ConvTranspose2d(in_channels=512, out_channels=320, kernel_size=2, stride=2)
-        self.up2 = nn.ConvTranspose2d(in_channels=320, out_channels=128, kernel_size=2, stride=2)
-        self.up3 = nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=2, stride=2)
-        self.up4 = nn.ConvTranspose2d(in_channels=64, out_channels=1, kernel_size=4, stride=4)
-        self.relu = nn.ReLU(inplace=True)
-        self.sigmod = nn.Sigmoid()
+        self.sa = SelfAttention(64)
+        self.upConv4 = nn.ConvTranspose2d(in_channels=512, out_channels=1, kernel_size=8, stride=8)
+        self.upConv3 = nn.ConvTranspose2d(in_channels=320, out_channels=1, kernel_size=4, stride=4)
+        self.upConv2 = nn.ConvTranspose2d(in_channels=128, out_channels=1, kernel_size=2, stride=2)
+        self.upConv1 = nn.ConvTranspose2d(in_channels=64, out_channels=1, kernel_size=4, stride=4)
 
     def forward(self, x1, x2, x3, x4):
-        x = self.relu(self.up1(x4))
-        x = self.relu(self.up2(x))
-        x = self.relu(self.up3(x))
-        x = self.relu(self.up4(x))
-        x = self.sigmod(x)
-
+        x4 = F.relu(self.upConv4(x4))
+        x3 = F.relu(self.upConv3(x3))
+        x2 = F.relu(self.upConv2(x2))
+        x = self.sa(x1 + x2 + x3 + x4)
+        x = torch.sigmoid(self.upConv1(x))
         return x
 
 class HRSeg(nn.Module):
@@ -485,3 +476,13 @@ class HRSeg(nn.Module):
         model_dict.update(pretrained_dict)
         self.encoder.load_state_dict(model_dict)
         print("Loaded state dict for encoder: pretrained_pth/mit_b2.pth")
+
+if __name__ == "__main__":
+    x1 = torch.rand(1, 64, 72, 72)
+    x2 = torch.rand(1, 128, 36, 36)
+    x3 = torch.rand(1, 320, 18, 18)
+    x4 = torch.rand(1, 512, 9, 9)
+
+    att_head = AttentionHead()
+    weight_map = att_head(x1, x2, x3, x4)
+    print(weight_map.shape)

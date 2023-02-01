@@ -5,6 +5,7 @@ from thop import clever_format
 import os
 from natsort import natsorted
 import cv2
+from prettytable import PrettyTable
 
 # Constants
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
@@ -142,3 +143,16 @@ def rotate(image, angle, center = None, scale = 1.0):
     rotated = cv2.warpAffine(image, M, (w, h))
 
     return rotated
+
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: 
+            continue
+        param = parameter.numel()
+        table.add_row([name, param])
+        total_params+=param
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
