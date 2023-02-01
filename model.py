@@ -9,6 +9,7 @@ from mmcv.cnn import ConvModule
 from torch.nn import Conv2d, UpsamplingBilinear2d
 import torch.nn as nn
 import torch
+from lib.pvtv2 import pvt_v2_b2
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -427,40 +428,6 @@ class Decoder(Module):
         return x
 
 
-class SelfAttention(nn.Module):
-    def __init__(self, n_channels) -> None:
-        super().__init__()
-        self.query, self.key, self.value = [
-            nn.Conv1d(in_channels=n_channels, out_channels=c, kernel_size=1, bias=False) \
-            for c in (n_channels // 8, n_channels // 8, n_channels)
-        ]
-        self.gamma = nn.Parameter(torch.tensor([0.]))
-
-    def forward(self, x):
-        size = x.size()
-        x = x.view(*size[:2],-1)
-        f,g,h = self.query(x),self.key(x),self.value(x)
-        beta = F.softmax(torch.bmm(f.transpose(1,2), g), dim=1)
-        o = self.gamma * torch.bmm(h, beta) + x
-        return o.view(*size).contiguous()
-
-class AttentionHead(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.sa = SelfAttention(64)
-        self.upConv4 = nn.ConvTranspose2d(in_channels=512, out_channels=1, kernel_size=8, stride=8)
-        self.upConv3 = nn.ConvTranspose2d(in_channels=320, out_channels=1, kernel_size=4, stride=4)
-        self.upConv2 = nn.ConvTranspose2d(in_channels=128, out_channels=1, kernel_size=2, stride=2)
-        self.upConv1 = nn.ConvTranspose2d(in_channels=64, out_channels=1, kernel_size=4, stride=4)
-
-    def forward(self, x1, x2, x3, x4):
-        x4 = F.relu(self.upConv4(x4))
-        x3 = F.relu(self.upConv3(x3))
-        x2 = F.relu(self.upConv2(x2))
-        x = self.sa(x1 + x2 + x3 + x4)
-        x = torch.sigmoid(self.upConv1(x))
-        return x
-
 class HRSeg(nn.Module):
     def __init__(self):
         super().__init__()
@@ -485,7 +452,3 @@ if __name__ == "__main__":
     x2 = torch.rand(1, 128, 36, 36)
     x3 = torch.rand(1, 320, 18, 18)
     x4 = torch.rand(1, 512, 9, 9)
-
-    att_head = AttentionHead()
-    weight_map = att_head(x1, x2, x3, x4)
-    print(weight_map.shape)

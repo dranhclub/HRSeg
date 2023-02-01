@@ -4,14 +4,14 @@ import os
 from model import HRSeg
 import cv2
 from dataloader import TestDatasets
-from utils import TEST_ROOT, RESULT_ROOT
+from utils import TEST_ROOT, RESULT_ROOT, OUTER_SIZE
 import shutil
 from train import infer
 
-TEST_SIZE = 576
-PTH_PATH = './model_pth/HRSeg3.e_80.Feb01-06h54.pth'
 
-name = 'HRSeg3'
+PTH_PATH = './model_pth/HRSeg6.e_40.Feb01-11h34.pth'
+
+name = 'HRSeg6'
 print("NAME=", name)
 save_dir = os.path.join(RESULT_ROOT, name)
 print("save_dir=", save_dir)
@@ -24,7 +24,7 @@ model = HRSeg().cuda()
 model.load_state_dict(torch.load(PTH_PATH, map_location='cuda'))
 model.eval()
 
-test_loader = TestDatasets(TEST_ROOT, TEST_SIZE)
+test_loader = TestDatasets(TEST_ROOT, OUTER_SIZE)
 
 for ds_name in test_loader.DS_NAMES:
     # Make save folder if not exist

@@ -1,4 +1,4 @@
-from utils import clip_gradient, dice
+from utils import clip_gradient, dice, INNER_SIZE, OUTER_SIZE
 from dataloader import get_train_loader, TestDatasets
 from model import HRSeg
 import torch
@@ -35,20 +35,20 @@ def infer(model: HRSeg, image):
     image = image.unsqueeze(0).cuda()
 
     # Infer outer
-    outer = F.interpolate(image, size=(288, 288), mode='bilinear')
+    outer = F.interpolate(image, size=(INNER_SIZE, INNER_SIZE), mode='bilinear')
 
     with torch.no_grad():
         x1, x2, x3, x4 = model.encoder(outer)
         outer_output = model.segm_head([x1, x2, x3, x4])
         weight_map = model.att_head([x1, x2, x3, x4])
-    outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
-    weight_map = F.interpolate(weight_map, size=(576, 576), mode='bilinear')
+    outer_output = F.interpolate(outer_output, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
+    weight_map = F.interpolate(weight_map, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
 
     # Overlapping window infer inner
     inner_images = []
-    for x_min, y_min in itertools.product([0, 144, 288], [0, 144, 288]):
-        x_max = x_min + 288
-        y_max = y_min + 288
+    for x_min, y_min in itertools.product([0, 176], [0, 176]):
+        x_max = x_min + INNER_SIZE
+        y_max = y_min + INNER_SIZE
         inner_image = image[:,:,y_min:y_max, x_min:x_max]
         inner_images.append(inner_image[0])
     inner_images = torch.stack(inner_images)
@@ -58,11 +58,11 @@ def infer(model: HRSeg, image):
 
     ## Fuse
     # Sum
-    combined_inners = torch.zeros(1, 576, 576).cuda()
-    avg_weight = torch.zeros(1, 576, 576).cuda()
-    for i, (x_min, y_min) in enumerate(list(itertools.product([0, 144, 288], [0, 144, 288]))):
-        x_max = x_min + 288
-        y_max = y_min + 288
+    combined_inners = torch.zeros(1, OUTER_SIZE, OUTER_SIZE).cuda()
+    avg_weight = torch.zeros(1, OUTER_SIZE, OUTER_SIZE).cuda()
+    for i, (x_min, y_min) in enumerate(list(itertools.product([0, 176], [0, 176]))):
+        x_max = x_min + INNER_SIZE
+        y_max = y_min + INNER_SIZE
         combined_inners[:, y_min:y_max, x_min:x_max] += inner_outputs[i]
         avg_weight[:, y_min:y_max, x_min:x_max] += 1
     # Average
@@ -75,7 +75,7 @@ def infer(model: HRSeg, image):
 def validate(model, test_root, epoch):
     model.eval()
     dice_record = {}
-    test_loader = TestDatasets(test_root, 576)
+    test_loader = TestDatasets(test_root, OUTER_SIZE)
     for ds_name in test_loader.DS_NAMES:
         sum_dice_score = 0.0
         n_imgs = test_loader.datasets[ds_name]["n_imgs"]
@@ -120,10 +120,10 @@ def train(train_loader, model: HRSeg, optimizer, epoch):
         weight_map = model.att_head([x1, x2, x3, x4])
 
         # upscale outer output
-        outer_output = F.interpolate(outer_output, size=(576, 576), mode='bilinear')
+        outer_output = F.interpolate(outer_output, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
 
         # upscale weight map
-        weight_map = F.interpolate(weight_map, size=(576, 576), mode='bilinear')
+        weight_map = F.interpolate(weight_map, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
 
         inner_output_padded = torch.zeros_like(outer_output)
         weight_map_cropped = torch.zeros_like(weight_map)
@@ -173,9 +173,6 @@ def parse_arg():
     parser.add_argument('--batchsize', type=int,
                         default=2, help='training batch size')
 
-    parser.add_argument('--train_size', type=int,
-                        default=288, help='training dataset size')
-
     parser.add_argument('--clip', type=float,
                         default=0.5, help='gradient clipping margin')
 
@@ -200,7 +197,7 @@ def parse_arg():
     
     parser.add_argument('--milestones', type=str, 
                         default='[15, 25, 35]',
-                        help='Multistep learning rate milestones (gamma=0.25)')
+                        help='Multistep learning rate milestones (gamma=0.5)')
 
     opt = parser.parse_args()
 
@@ -213,12 +210,12 @@ if __name__ == '__main__':
     model = HRSeg().cuda()
    
     # Train dataloader
-    train_loader = get_train_loader(train_roots=opt.train_roots, batchsize=opt.batchsize, train_size=opt.train_size, num_workers=opt.num_workers)
+    train_loader = get_train_loader(train_roots=opt.train_roots, batchsize=opt.batchsize, inner_size=INNER_SIZE, outer_size=OUTER_SIZE, num_workers=opt.num_workers)
     n_steps_per_epoch = len(train_loader)
 
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), opt.lr, weight_decay=1e-4)
-    scheduler = MultiStepLR(optimizer, milestones=eval(opt.milestones), gamma=0.25)
+    scheduler = MultiStepLR(optimizer, milestones=eval(opt.milestones), gamma=0.5)
 
     # Tensorboard writer
     writer = SummaryWriter(f'runs/{opt.name}')

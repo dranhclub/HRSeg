@@ -10,8 +10,9 @@ class TrainDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, dataset_roots, train_size, batch_size):
-        self.train_size = train_size
+    def __init__(self, dataset_roots, inner_size, outer_size, batch_size):
+        self.inner_size = inner_size
+        self.outer_size = outer_size
         self.batch_size = batch_size
         self.seed = np.random.randint(0, 1000)
         self.counter = 0
@@ -43,11 +44,11 @@ class TrainDataset(data.Dataset):
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.Rotate(90, border_mode=None),
-            A.PadIfNeeded(min_height=576, min_width=576, border_mode=None),
-            A.RandomCrop(576, 576),
+            A.PadIfNeeded(min_height=outer_size, min_width=outer_size, border_mode=None),
+            A.RandomCrop(outer_size, outer_size),
         ])
         self.tf_norm = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.tf_resize = A.Resize(train_size, train_size, cv2.INTER_CUBIC)
+        self.tf_resize = A.Resize(inner_size, inner_size, cv2.INTER_CUBIC)
         self.tf_to_tensor = albumentations.pytorch.transforms.ToTensorV2(transpose_mask=True)
 
     def __getitem__(self, index):
@@ -65,10 +66,10 @@ class TrainDataset(data.Dataset):
         res_tf_augment = self.tf_augment(image=image, mask=gt)
         image, gt = res_tf_augment['image'], res_tf_augment['mask']
 
-        # Random crop inner image to 288
+        # Random crop inner image to inner_size
         inner_image, x0, y0, x1, y1 = self.memorize_crop(image)
 
-        # Resize outer image to 288
+        # Resize outer image to inner_size
         outer_image = self.tf_resize(image=image)['image']
 
         # Apply to tensor
@@ -87,9 +88,9 @@ class TrainDataset(data.Dataset):
     def memorize_crop(self, image):
         np.random.seed(self.seed + self.counter // self.batch_size)
         self.counter += 1
-        x0, y0 = np.random.randint(0, 448-352, size=2, dtype=np.uint8)
-        x1 = x0 + self.train_size
-        y1 = y0 + self.train_size
+        x0, y0 = np.random.randint(0, self.outer_size - self.inner_size, size=2, dtype=np.uint8)
+        x1 = x0 + self.inner_size
+        y1 = y0 + self.inner_size
         inner_image = image[y0:y1, x0:x1]
         return inner_image, x0, y0, x1, y1
 
@@ -97,9 +98,9 @@ class TrainDataset(data.Dataset):
         return self.size
 
 
-def get_train_loader(train_roots, batchsize, train_size, shuffle=True, num_workers=4, pin_memory=True):
+def get_train_loader(train_roots, batchsize, inner_size, outer_size, shuffle=True, num_workers=4, pin_memory=True):
 
-    dataset = TrainDataset(train_roots, train_size, batchsize)
+    dataset = TrainDataset(train_roots, inner_size, outer_size, batchsize)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batchsize,
                                   shuffle=shuffle,
@@ -108,10 +109,10 @@ def get_train_loader(train_roots, batchsize, train_size, shuffle=True, num_worke
     return data_loader
 
 class TestDatasets():
-    def __init__(self, test_root, train_size):
+    def __init__(self, test_root, outer_size):
         self.DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
         self.test_root = test_root
-        self.train_size = train_size
+        self.train_size = outer_size
         
         # Crete datasets object
         datasets = {}

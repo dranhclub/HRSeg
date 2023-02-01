@@ -15,6 +15,9 @@ DATA_ROOT = './dataset'
 RESULT_ROOT = './result_map'
 CAPTURE_ROOT = './captured'
 
+INNER_SIZE = 352
+OUTER_SIZE = 528
+
 def clip_gradient(optimizer, grad_clip):
     """
     For calibrating misalignment gradient via cliping gradient technique
