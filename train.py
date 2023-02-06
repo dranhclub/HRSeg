@@ -7,7 +7,6 @@ import os
 import itertools
 import argparse
 from datetime import datetime
-import albumentations as A
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import MultiStepLR
 
@@ -46,7 +45,7 @@ def infer(model: HRSeg, image):
 
     # Overlapping window infer inner
     inner_images = []
-    for x_min, y_min in itertools.product([0, 176], [0, 176]):
+    for x_min, y_min in itertools.product([0, 144, 288], [0, 144, 288]):
         x_max = x_min + INNER_SIZE
         y_max = y_min + INNER_SIZE
         inner_image = image[:,:,y_min:y_max, x_min:x_max]
@@ -60,7 +59,7 @@ def infer(model: HRSeg, image):
     # Sum
     combined_inners = torch.zeros(1, OUTER_SIZE, OUTER_SIZE).cuda()
     avg_weight = torch.zeros(1, OUTER_SIZE, OUTER_SIZE).cuda()
-    for i, (x_min, y_min) in enumerate(list(itertools.product([0, 176], [0, 176]))):
+    for i, (x_min, y_min) in enumerate(list(itertools.product([0, 144, 288], [0, 144, 288]))):
         x_max = x_min + INNER_SIZE
         y_max = y_min + INNER_SIZE
         combined_inners[:, y_min:y_max, x_min:x_max] += inner_outputs[i]
@@ -126,14 +125,14 @@ def train(train_loader, model: HRSeg, optimizer, epoch):
         weight_map = F.interpolate(weight_map, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
 
         inner_output_padded = torch.zeros_like(outer_output)
-        weight_map_cropped = torch.zeros_like(weight_map)
-
+        weight_map_masked = torch.zeros_like(weight_map)
+                
         x0, y0, x1, y1 = slices.tolist()
         inner_output_padded[:, :, y0:y1, x0:x1] = inner_output
-        weight_map_cropped[:, :, y0:y1, x0:x1] = weight_map[:, :, y0:y1, x0:x1]
+        weight_map_masked[:, :, y0:y1, x0:x1] = weight_map[:, :, y0:y1, x0:x1]
 
         # fuse
-        output = inner_output_padded * weight_map_cropped + outer_output * (1 - weight_map_cropped)
+        output = inner_output_padded * weight_map_masked + outer_output * (1 - weight_map_masked)
 
         loss = structure_loss(output, gts)
 

@@ -88,7 +88,7 @@ class TrainDataset(data.Dataset):
     def memorize_crop(self, image):
         np.random.seed(self.seed + self.counter // self.batch_size)
         self.counter += 1
-        x0, y0 = np.random.randint(0, self.outer_size - self.inner_size, size=2, dtype=np.uint8)
+        x0, y0 = np.random.randint(0, self.outer_size - self.inner_size, size=2)
         x1 = x0 + self.inner_size
         y1 = y0 + self.inner_size
         inner_image = image[y0:y1, x0:x1]
