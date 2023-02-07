@@ -1,11 +1,10 @@
-import torch
-import numpy as np
-from thop import profile
-from thop import clever_format
 import os
-from natsort import natsorted
+
 import cv2
+import numpy as np
+from natsort import natsorted
 from prettytable import PrettyTable
+from thop import clever_format, profile
 
 # Constants
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']

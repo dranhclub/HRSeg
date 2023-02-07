@@ -1,15 +1,15 @@
-# Statistic and analysis results
+import argparse
+import os
 
 import cv2
 import matplotlib.pyplot as plt
-from utils import dice, get_test_raw_dataset, RawResult
-from visualize import Visualizer
-from utils import DS_NAMES
-import argparse
 import numpy as np
-import os
-from prettytable import PrettyTable
 import pandas as pd
+from prettytable import PrettyTable
+
+from utils import DS_NAMES, RawResult, dice, get_test_raw_dataset
+from visualize import Visualizer
+
 
 def calc(name):
     """
@@ -77,14 +77,14 @@ class Comparator():
         df2 = self.df[self.df['name']==self.name1].groupby(['ds_name']).mean().drop(columns=['img_idx', 'size'])
         for ds_name in DS_NAMES:
             dicelist1.append(f"{df2['dice'][ds_name]:.2f}")
-        m = self.df[self.df['name']==self.name1].mean()['dice']
+        m = self.df[self.df['name']==self.name1]['dice'].mean()
         dicelist1.append(f"{m:.2f}")
 
         dicelist2 = []
         df2 = self.df[self.df['name']==self.name2].groupby(['ds_name']).mean().drop(columns=['img_idx', 'size'])
         for ds_name in DS_NAMES:
             dicelist2.append(f"{df2['dice'][ds_name]:.2f}")
-        m = self.df[self.df['name']==self.name2].mean()['dice']
+        m = self.df[self.df['name']==self.name2]['dice'].mean()
         dicelist2.append(f"{m:.2f}")
 
         table.add_row([self.name1] + dicelist1)
@@ -237,12 +237,24 @@ class Comparator():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Statistic")
     parser.add_argument("--name1", "-n1", type=str, default="HRSeg8")
-    parser.add_argument("--name2", "-n2", type=str, default="ssformer_s")
+    parser.add_argument("--name2", "-n2", type=str, default="ssformer_S")
+    parser.add_argument("--print_table", action='store_true')
+    parser.add_argument("--show_scatter_dice_by_size", action='store_true')
+    parser.add_argument("--show_delta_dice", action='store_true')
+    parser.add_argument("--show_scatter_dice_by_range_size", action='store_true')
+
     opt = parser.parse_args()
 
     comparator = Comparator(opt.name1, opt.name2)
 
-    comparator.print_dice_table()
-    comparator.show_scatter_dice_by_size()
-    comparator.show_delta_dice()
-    comparator.show_scatter_dice_by_range_size()
+    if opt.print_table:
+        comparator.print_dice_table()
+
+    if opt.show_scatter_dice_by_size:
+        comparator.show_scatter_dice_by_size()
+
+    if opt.show_delta_dice:
+        comparator.show_delta_dice()
+    
+    if opt.show_scatter_dice_by_range_size:
+        comparator.show_scatter_dice_by_range_size()

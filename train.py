@@ -1,14 +1,17 @@
-from utils import clip_gradient, dice, INNER_SIZE, OUTER_SIZE
-from dataloader import get_train_loader, TestDatasets
-from model import HRSeg
+import argparse
+import itertools
+import os
+from datetime import datetime
+
 import torch
 import torch.nn.functional as F
-import os
-import itertools
-import argparse
-from datetime import datetime
-from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import MultiStepLR
+from torch.utils.tensorboard import SummaryWriter
+
+from dataloader import TestDatasets, get_train_loader
+from model import HRSeg
+from utils import INNER_SIZE, OUTER_SIZE, clip_gradient, dice
+
 
 def structure_loss(pred, mask):
     weit = 1 + 5 * \

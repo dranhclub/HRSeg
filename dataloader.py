@@ -1,10 +1,12 @@
 import os
-import torch.utils.data as data
-import numpy as np
-from natsort import natsorted
+
 import albumentations as A
 import albumentations.pytorch.transforms
-import cv2    
+import cv2
+import numpy as np
+import torch.utils.data as data
+from natsort import natsorted
+
 
 class TrainDataset(data.Dataset):
     """
@@ -118,7 +120,7 @@ class TestDatasets():
         datasets = {}
         for name in self.DS_NAMES:
             root = os.path.join(test_root, name)
-            imgs = os.listdir(os.path.join(root, "images"))
+            imgs = natsorted(os.listdir(os.path.join(root, "images")))
             n_imgs = len(imgs)
             datasets[name] = {
                 "root": root,

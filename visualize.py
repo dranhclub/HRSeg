@@ -1,9 +1,19 @@
-import cv2
+import argparse
+import itertools
 import os
+
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
-from utils import dice
-from utils import get_test_raw_dataset, get_train_raw_dataset, RawResult
-from utils import DS_NAMES, CAPTURE_ROOT
+import torch
+import torch.nn.functional as F
+
+from dataloader import TestDatasets
+from model import HRSeg
+from utils import (CAPTURE_ROOT, DS_NAMES, INNER_SIZE, OUTER_SIZE, 
+                   TEST_ROOT, RawResult, dice, get_test_raw_dataset)
+                   
+
 
 def blend(background, foreground_color, mask, alpha):
     '''
@@ -50,6 +60,9 @@ class Visualizer():
         self.set_dataset_by_index(0)
         
         self.frame = self.render_frame()
+
+        self.test_loader = TestDatasets(TEST_ROOT, OUTER_SIZE)
+        self.model = None
 
     def set_dataset_by_name(self, ds_name):
         index = DS_NAMES.index(ds_name)
@@ -155,11 +168,93 @@ class Visualizer():
                 self.show_pred = not self.show_pred
             elif key == ord("c"): # Capture 
                 self.capture()
+            elif key == ord("i"):
+                self.show_inspector()
             elif key == 27:
                 break
 
         cv2.destroyAllWindows()
 
+    def show_inspector(self):
+        # Load the model
+        if self.model == None:
+            model = HRSeg().cuda()
+            model.load_state_dict(torch.load(PTH_PATH, map_location='cuda'))
+            model.eval()
+            self.model = model
+        else:
+            model = self.model
+
+        # Get the image
+        original_image, transformed_image, gt = self.test_loader.get_item(self.ds_name, self.img_idx)
+
+        # Do inference
+        image = transformed_image.unsqueeze(0).cuda()
+
+        # Infer outer
+        outer = F.interpolate(image, size=(INNER_SIZE, INNER_SIZE), mode='bilinear')
+
+        with torch.no_grad():
+            x1, x2, x3, x4 = model.encoder(outer)
+            outer_output = model.segm_head([x1, x2, x3, x4])
+            weight_map = model.att_head([x1, x2, x3, x4])
+        outer_output = F.interpolate(outer_output, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
+        weight_map = F.interpolate(weight_map, size=(OUTER_SIZE, OUTER_SIZE), mode='bilinear')
+
+        # Overlapping window infer inner
+        inner_images = []
+        for x_min, y_min in itertools.product([0, 144, 288], [0, 144, 288]):
+            x_max = x_min + INNER_SIZE
+            y_max = y_min + INNER_SIZE
+            inner_image = image[:,:,y_min:y_max, x_min:x_max]
+            inner_images.append(inner_image[0])
+        inner_images = torch.stack(inner_images)
+        with torch.no_grad():
+            x1, x2, x3, x4 = model.encoder(inner_images)
+            inner_outputs = model.segm_head([x1, x2, x3, x4])
+
+        ## Fuse
+        # Sum
+        combined_inners = torch.zeros(1, OUTER_SIZE, OUTER_SIZE).cuda()
+        avg_weight = torch.zeros(1, OUTER_SIZE, OUTER_SIZE).cuda()
+        for i, (x_min, y_min) in enumerate(list(itertools.product([0, 144, 288], [0, 144, 288]))):
+            x_max = x_min + INNER_SIZE
+            y_max = y_min + INNER_SIZE
+            combined_inners[:, y_min:y_max, x_min:x_max] += inner_outputs[i]
+            avg_weight[:, y_min:y_max, x_min:x_max] += 1
+        # Average
+        combined_inners = combined_inners / avg_weight
+        # Weighted sum
+        fused_output = combined_inners * weight_map + outer_output * (1-weight_map)
+
+        # Final output
+        res = fused_output.sigmoid().data.cpu().numpy().squeeze()
+        res = (res - res.min()) / (res.max() - res.min() + 1e-8)
+
+        def visualize(tensor, name):
+            tensor = torch.squeeze(tensor).cpu().numpy()
+            plt.imshow(tensor, cmap='plasma')
+            plt.axis('off')
+            plt.title(name)
+
+        plt.figure(figsize=(12, 8))
+        plt.subplot(241), plt.imshow(cv2.resize(original_image, res.shape)), plt.axis('off'), plt.title("Image")
+        plt.subplot(242), visualize(outer_output, "Outer output")
+        plt.subplot(243), visualize(weight_map, "Weight map")
+        plt.subplot(244), visualize(combined_inners, "Combied inners output")
+        plt.subplot(245), visualize(fused_output, "Fused output")
+        plt.subplot(246), plt.imshow(res, cmap='gray'), plt.axis('off'), plt.title("Output")
+        plt.subplot(247), plt.imshow(cv2.resize(gt, res.shape), cmap='gray'), plt.axis('off'), plt.title("Ground truth")
+        plt.tight_layout()
+        plt.show()
+
+
 if __name__ == "__main__":
-    v = Visualizer(name="HRSeg6")
+    parser = argparse.ArgumentParser("Visualizer")
+    parser.add_argument("--name", "-n", type=str, required=True)
+    parser.add_argument("--pth_path", "-p", type=str, required=True)
+    opt = parser.parse_args()
+
+    PTH_PATH = opt.pth_path
+    v = Visualizer(name=opt.name)
     v.show()

@@ -1,15 +1,15 @@
-import warnings
-import torch.nn.functional as F
-from functools import partial
-from timm.models.layers import to_2tuple, trunc_normal_
 import math
-from timm.models.layers import DropPath
-from torch.nn import Module
-from mmcv.cnn import ConvModule
-from torch.nn import Conv2d, UpsamplingBilinear2d
-import torch.nn as nn
+import warnings
+from functools import partial
+
 import torch
-from lib.pvtv2 import pvt_v2_b2
+import torch.nn as nn
+import torch.nn.functional as F
+from mmcv.cnn import ConvModule
+from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from torch.nn import Conv2d, Module
+
+
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
