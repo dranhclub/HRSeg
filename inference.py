@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     # Prepare model
     model = HRSeg().cuda()
-    model.load_state_dict(torch.load(opt.path, map_location='cuda'))
+    model.load_state_dict(torch.load(opt.pth_path, map_location='cuda'))
     model.eval()
 
     print("NAME=", opt.name)

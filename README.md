@@ -11,13 +11,14 @@ python train.py
 Inference
 
 ```sh
-python infer_HRDA.py -n HRSeg8 -p model_pth/HRSeg9.e_40.Feb07-03h53.pth
+python inference.py -n HRSeg9 -p model_pth/HRSeg9.e_40.Feb07-03h53.pth
+python inference.py -n HRSeg10 -p model_pth/HRSeg10.e_40.Feb08-05h23.pth
 ```
 
 Analysis
 
 ```sh
-python analysis.py -n1 HRSeg8 -n2 ssformer_S `
+python analysis.py -n1 PolypPVT -n2 HRSeg10 `
 --print_table `
 --show_scatter_dice_by_size `
 --show_delta_dice `
@@ -29,5 +30,5 @@ python -m debugpy --listen 5678 --wait-for-client analysis.py -n1 HRSeg8 -n2 ssf
 Visualize
 
 ```sh
-python visualize.py -n HRSeg8 -p model_pth/HRSeg8.e_40.Feb06-05h33.pth
+python visualize.py -n HRSeg10 -p model_pth/HRSeg10.e_40.Feb08-05h23.pth
 ```
