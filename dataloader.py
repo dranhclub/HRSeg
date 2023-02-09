@@ -45,10 +45,10 @@ class TrainDataset(data.Dataset):
         self.tf_augment = A.Compose([
             A.VerticalFlip(p=0.5),
             A.HorizontalFlip(p=0.5),
-            A.Rotate(90, border_mode=None),
-            A.PadIfNeeded(min_height=outer_size, min_width=outer_size, border_mode=None),
-            A.RandomCrop(outer_size, outer_size),
+            A.Rotate(90, border_mode=None)
         ])
+
+        self.tf_outercrop = A.RandomCrop(outer_size, outer_size)
         self.tf_norm = A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.tf_resize = A.Resize(inner_size, inner_size, cv2.INTER_CUBIC)
         self.tf_to_tensor = albumentations.pytorch.transforms.ToTensorV2(transpose_mask=True)
@@ -65,18 +65,25 @@ class TrainDataset(data.Dataset):
         image = self.tf_norm(image=image)['image']
 
         # Apply augment
-        res_tf_augment = self.tf_augment(image=image, mask=gt)
-        image, gt = res_tf_augment['image'], res_tf_augment['mask']
+        out = self.tf_augment(image=image, mask=gt)
+        image, gt = out['image'], out['mask']
 
-        # Random crop inner image to inner_size
-        inner_image, x0, y0, x1, y1 = self.memorize_crop(image)
+        # Resize image to outer_size if image is too small
+        out = self._resize_if_needed(image=image, mask=gt)
+        image, gt = out['image'], out['mask']
+
+        # Random crop outer image with size = outer_size
+        out = self.tf_outercrop(image=image, mask=gt)
+        image, gt = out['image'], out['mask']
+
+        # Random crop inner image with size = inner_size
+        inner_image, x0, y0, x1, y1 = self._random_crop(image)
 
         # Resize outer image to inner_size
         outer_image = self.tf_resize(image=image)['image']
 
         # Apply to tensor
         gt = self.tf_to_tensor(image=gt)['image']
-
         inner_image = self.tf_to_tensor(image=inner_image)['image']
         outer_image = self.tf_to_tensor(image=outer_image)['image']
         
@@ -87,13 +94,36 @@ class TrainDataset(data.Dataset):
             "slice": np.array([x0, y0, x1, y1])
         }
 
-    def memorize_crop(self, image):
+    def _resize_if_needed(self, image, mask):
+        width, height = image.shape[1], image.shape[0]
+        if width < self.outer_size and height < self.outer_size:
+            resizer = A.Resize(height=self.outer_size, width=self.outer_size, interpolation=cv2.INTER_CUBIC)
+            return resizer(image=image, mask=mask)
+        elif width < self.outer_size:
+            resizer = A.Resize(height=height, width=self.outer_size, interpolation=cv2.INTER_CUBIC)
+            return resizer(image=image, mask=mask)
+        elif height < self.outer_size:
+            resizer = A.Resize(height=self.outer_size, width=width, interpolation=cv2.INTER_CUBIC)
+            return resizer(image=image, mask=mask)
+        else:
+            return {
+                "image": image, 
+                "mask": mask
+            }
+
+    def _random_crop(self, image):
+        '''Random Crop by batch'''
+        
+        # Set seed by batch
         np.random.seed(self.seed + self.counter // self.batch_size)
         self.counter += 1
+
+        # Do crop
         x0, y0 = np.random.randint(0, self.outer_size - self.inner_size, size=2)
         x1 = x0 + self.inner_size
         y1 = y0 + self.inner_size
         inner_image = image[y0:y1, x0:x1]
+
         return inner_image, x0, y0, x1, y1
 
     def __len__(self):

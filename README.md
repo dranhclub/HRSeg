@@ -18,7 +18,7 @@ python inference.py -n HRSeg10 -p model_pth/HRSeg10.e_40.Feb08-05h23.pth
 Analysis
 
 ```sh
-python analysis.py -n1 PolypPVT -n2 HRSeg10 `
+python analysis.py -n1 HRSeg10 -n2 ssformer_S `
 --print_table `
 --show_scatter_dice_by_size `
 --show_delta_dice `
