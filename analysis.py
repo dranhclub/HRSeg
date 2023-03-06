@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from prettytable import PrettyTable
 
-from utils import DS_NAMES, RawResult, dice, get_test_raw_dataset
+from utils import DS_NAMES, RawResult, dice, get_test_raw_dataset, iou
 from visualize import Visualizer
 
 
@@ -46,11 +46,14 @@ def calc(name):
                 # Dice score
                 dice_score = dice(gt / 255, pred / 255) * 100
 
+                # IoU score
+                iou_score = iou(gt / 255, pred / 255) * 100
+
                 # Record
-                rows.append((name, ds_name, img_idx, dice_score, size))
+                rows.append((name, ds_name, img_idx, dice_score, iou_score, size))
 
         # Create dataframe
-        df = pd.DataFrame(rows, columns=["name", "ds_name", "img_idx", "dice", "size"])
+        df = pd.DataFrame(rows, columns=["name", "ds_name", "img_idx", "dice", "iou", "size"])
         df.to_csv(cache_file)
         print("Process done!")
 
@@ -91,6 +94,30 @@ class Comparator():
         table.add_row([self.name2] + dicelist2)
         
         print("Dice table")
+        print(table)
+
+    def print_iou_table(self):
+        table = PrettyTable()
+        table.field_names = ["Name", *DS_NAMES, "Average"]
+
+        ioulist1 = []
+        df2 = self.df[self.df['name']==self.name1].groupby(['ds_name']).mean().drop(columns=['img_idx', 'size'])
+        for ds_name in DS_NAMES:
+            ioulist1.append(f"{df2['iou'][ds_name]:.2f}")
+        m = self.df[self.df['name']==self.name1]['iou'].mean()
+        ioulist1.append(f"{m:.2f}")
+
+        ioulist2 = []
+        df2 = self.df[self.df['name']==self.name2].groupby(['ds_name']).mean().drop(columns=['img_idx', 'size'])
+        for ds_name in DS_NAMES:
+            ioulist2.append(f"{df2['iou'][ds_name]:.2f}")
+        m = self.df[self.df['name']==self.name2]['iou'].mean()
+        ioulist2.append(f"{m:.2f}")
+
+        table.add_row([self.name1] + ioulist1)
+        table.add_row([self.name2] + ioulist2)
+        
+        print("IoU table")
         print(table)
 
     def _show_visualize(self, ds_name, img_idx):
@@ -200,7 +227,7 @@ class Comparator():
             ax = axes[i // 3][i % 3]
             ax.scatter(np.arange(0, N, 1), list(map(lambda x: x['delta_dice'], delta_dice)), picker=True)
             ax.set_title(ds_name)
-            ax.set_xlabel("Polyp size")
+            ax.set_xlabel("Image index")
             ax.set_ylabel("Delta dice")
             ax.axhline(y=0, color='r', linestyle='-')
 
@@ -249,6 +276,7 @@ if __name__ == "__main__":
 
     if opt.print_table:
         comparator.print_dice_table()
+        comparator.print_iou_table()
 
     if opt.show_scatter_dice_by_size:
         comparator.show_scatter_dice_by_size()

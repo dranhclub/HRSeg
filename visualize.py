@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from dataloader import TestDatasets
 from model import HRSeg
 from utils import (CAPTURE_ROOT, DS_NAMES, INNER_SIZE, OUTER_SIZE, 
-                   TEST_ROOT, RawResult, dice, get_test_raw_dataset)
+                   TEST_ROOT, RawResult, dice, get_test_raw_dataset, iou)
                    
 
 
@@ -44,6 +44,7 @@ class Visualizer():
     [+, -]: change image scale
     [g]   : show ground truth
     [p]   : show predict
+    [i]   : show inspector
     [ESQ] : quit
     """
 
@@ -133,6 +134,10 @@ class Visualizer():
         dice_score = dice(pred / 255, gt / 255) * 100
         text = f"Dice score: {dice_score:.2f} %"
         cv2.putText(img=frame, text=text, org=(10, 120), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
+
+        iou_score = iou(pred / 255, gt / 255) * 100
+        text = f"IoU score: {iou_score:.2f} %"
+        cv2.putText(img=frame, text=text, org=(10, 140), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=self.text_color)
 
         # Text: Experiment name
         text = f"Experiment name: {self.name}"
@@ -230,7 +235,8 @@ class Visualizer():
         # Final output
         res = fused_output.sigmoid().data.cpu().numpy().squeeze()
         res = (res - res.min()) / (res.max() - res.min() + 1e-8)
-
+        res = (res > 0.5).astype('float')
+        
         def visualize(tensor, name):
             tensor = torch.squeeze(tensor).cpu().numpy()
             plt.imshow(tensor, cmap='plasma')

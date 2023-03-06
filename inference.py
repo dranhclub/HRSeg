@@ -11,6 +11,8 @@ from model import HRSeg
 from train import infer
 from utils import OUTER_SIZE, RESULT_ROOT, TEST_ROOT
 
+import time
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Inference")
     parser.add_argument("--name", "-n", type=str, required=True)
@@ -47,6 +49,7 @@ if __name__ == "__main__":
             res = F.upsample(res, size=gt.shape, mode='bilinear', align_corners=False)
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
+            res = (res > 0.5).astype('float')
 
             # Save
             img_filename = test_loader.datasets[ds_name]["imgs"][i]

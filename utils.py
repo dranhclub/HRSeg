@@ -3,8 +3,6 @@ import os
 import cv2
 import numpy as np
 from natsort import natsorted
-from prettytable import PrettyTable
-from thop import clever_format, profile
 
 # Constants
 DS_NAMES = ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-LaribPolypDB']
@@ -29,21 +27,6 @@ def clip_gradient(optimizer, grad_clip):
             if param.grad is not None:
                 param.grad.data.clamp_(-grad_clip, grad_clip)
 
-def CalParams(model, input_tensor):
-    """
-    Usage:
-        Calculate Params and FLOPs via [THOP](https://github.com/Lyken17/pytorch-OpCounter)
-    Necessarity:
-        from thop import profile
-        from thop import clever_format
-    :param model:
-    :param input_tensor:
-    :return:
-    """
-    flops, params = profile(model, inputs=(input_tensor,))
-    flops, params = clever_format([flops, params], "%.3f")
-    print('[Statistics Information]\nFLOPs: {}\nParams: {}'.format(flops, params))
-
 def dice(input, target):
     """
     input, target: gray image, normalized in [0,1]
@@ -54,6 +37,18 @@ def dice(input, target):
     intersection = (input_flat * target_flat)
     dice = (2 * intersection.sum() + SMOOTH) / (input.sum() + target.sum() + SMOOTH)
     return dice
+
+def iou(input, target):
+    """
+    input, target: gray image, normalized in [0,1]
+    """
+    SMOOTH = 1
+    input_flat = np.reshape(input, (-1))
+    target_flat = np.reshape(target, (-1))
+    intersection = np.logical_and(input_flat, target_flat)
+    union = np.logical_or(input_flat, target_flat)
+    iou = (intersection.sum() + SMOOTH) / (union.sum() + SMOOTH)
+    return iou
 
 def polyp_size(gt):
     return gt[gt > 0].size / gt.size * 100
@@ -133,28 +128,3 @@ class RawResult():
         """Return binary image"""
         path = self.get_result_path(ds_name, img_idx)
         return cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-
-def rotate(image, angle, center = None, scale = 1.0):
-    (h, w) = image.shape[:2]
-
-    if center is None:
-        center = (w / 2, h / 2)
-
-    # Perform the rotation
-    M = cv2.getRotationMatrix2D(center, angle, scale)
-    rotated = cv2.warpAffine(image, M, (w, h))
-
-    return rotated
-
-def count_parameters(model):
-    table = PrettyTable(["Modules", "Parameters"])
-    total_params = 0
-    for name, parameter in model.named_parameters():
-        if not parameter.requires_grad: 
-            continue
-        param = parameter.numel()
-        table.add_row([name, param])
-        total_params+=param
-    print(table)
-    print(f"Total Trainable Params: {total_params}")
-    return total_params
