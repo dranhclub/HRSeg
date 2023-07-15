@@ -7,26 +7,29 @@ In this project, we propose a novel method called HRSeg for polyp segmentation t
 ## Inference strategy
 ![HRSeg inference strategy](images/HRSeg-infer.drawio.png)
 
+## Pretrained model weight
+Our HRSeg model weight can be download here [GG drive](https://drive.google.com/file/d/1L3C_Tnl0UcePhueXSkQlMykK7iv73eUB/view?usp=sharing)
+
+
 ## How to
 
 Train
 
 ```sh
-python train.py
+# Check arguments with
+python train.py --help
 ```
 
 Inference
 
 ```sh
-python inference.py -n HRSeg11 -p model_pth/HRSeg11.e_40.Feb09-11h51.pth
-python inference.py -n HRSeg11_2 -p model_pth/HRSeg11_2.e_40.Feb09-13h33.pth
-python inference.py -n HRSeg11_3 -p model_pth/HRSeg11_3.e_40.Feb10-06h30.pth
+python inference.py -n HRSeg -p path/to/model.pth
 ```
 
 Analysis
 
 ```sh
-python analysis.py -n1 HRSeg11_3 -n2 ssformer_S `
+python analysis.py -n1 HRSeg -n2 ssformer_S `
 --print_table `
 --show_scatter_dice_by_size `
 --show_delta_dice `
@@ -36,7 +39,5 @@ python analysis.py -n1 HRSeg11_3 -n2 ssformer_S `
 Visualize
 
 ```sh
-python visualize.py -n HRSeg11 -p model_pth/HRSeg11.e_40.Feb09-11h51.pth
-python visualize.py -n HRSeg11_2 -p model_pth/HRSeg11_2.e_40.Feb09-13h33.pth
-python visualize.py -n HRSeg11_3 -p model_pth/HRSeg11_3.e_40.Feb10-06h30.pth
+python visualize.py -n HRSeg -p path/to/model.pth
 ```
